@@ -24,12 +24,23 @@ export const api = {
   createEvent: (orgId, body) => request(`/api/admin/orgs/${orgId}/events`, { method: 'POST', body: JSON.stringify(body) }),
   getEvent: (eventId) => request(`/api/admin/events/${eventId}`),
   updateStatus: (eventId, status) => request(`/api/admin/events/${eventId}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
+  setLeaderboardVisibility: (eventId, visible) => request(`/api/admin/events/${eventId}/leaderboard-visibility`, { method: 'POST', body: JSON.stringify({ visible }) }),
 
   // Admin - Teams
   addTeam: (eventId, body) => request(`/api/admin/events/${eventId}/teams`, { method: 'POST', body: JSON.stringify(body) }),
   bulkImport: (eventId, rows) => request(`/api/admin/events/${eventId}/teams/bulk`, { method: 'POST', body: JSON.stringify({ rows }) }),
+  overrideScore: (eventId, teamId, body) => request(`/api/admin/events/${eventId}/teams/${teamId}/override`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // Admin - Sponsors
+  getSponsors: (eventId) => request(`/api/admin/events/${eventId}/sponsors`),
+  addSponsor: (eventId, body) => request(`/api/admin/events/${eventId}/sponsors`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteSponsor: (eventId, sponsorId) => request(`/api/admin/events/${eventId}/sponsors/${sponsorId}`, { method: 'DELETE' }),
 
   // Public - Scoring
   getScoreContext: (token) => request(`/api/score/${token}/context`),
   submitScore: (token, body) => request(`/api/score/${token}/hole`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // Public - Leaderboard
+  getLeaderboard: (orgSlug, eventSlug) => request(`/api/public/org/${orgSlug}/event/${eventSlug}/leaderboard`),
+  getPublicSponsors: (orgSlug, eventSlug) => request(`/api/public/org/${orgSlug}/event/${eventSlug}/sponsors`),
 };

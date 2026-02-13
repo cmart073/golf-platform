@@ -17,6 +17,8 @@ function TeamRow({ team, origin }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const holesEntered = Object.keys(team.scores || {}).length;
+
   return (
     <tr>
       <td style={{ fontWeight: 500 }}>{team.team_name}</td>
@@ -35,9 +37,90 @@ function TeamRow({ team, origin }) {
         <QRCodeSVG value={scoreUrl} size={48} level="M" />
       </td>
       <td style={{ fontSize: '0.8rem', color: 'var(--slate-400)' }}>
-        {Object.keys(team.scores || {}).length} holes
+        {holesEntered} holes
       </td>
     </tr>
+  );
+}
+
+function SponsorSection({ eventId, sponsors: initialSponsors, onUpdate }) {
+  const [sponsors, setSponsors] = useState(initialSponsors || []);
+  const [logoUrl, setLogoUrl] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [order, setOrder] = useState(0);
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => { setSponsors(initialSponsors || []); }, [initialSponsors]);
+
+  const handleAdd = async () => {
+    if (!logoUrl.trim()) return;
+    setAdding(true);
+    try {
+      await api.addSponsor(eventId, { logo_url: logoUrl, display_order: order, link_url: linkUrl || undefined });
+      setLogoUrl('');
+      setLinkUrl('');
+      setOrder(sponsors.length);
+      onUpdate();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleDelete = async (sponsorId) => {
+    try {
+      await api.deleteSponsor(eventId, sponsorId);
+      onUpdate();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: '1.5rem' }}>
+      <h2 style={{ marginBottom: '1rem' }}>🎯 Sponsors</h2>
+
+      {sponsors.length === 0 ? (
+        <div className="empty-state" style={{ marginBottom: '1rem' }}>No sponsors yet. Add sponsor logo URLs below.</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+          {sponsors.map(sp => (
+            <div key={sp.id} style={{
+              border: '1px solid var(--slate-200)', borderRadius: 'var(--radius-md)',
+              padding: '0.75rem', textAlign: 'center', position: 'relative'
+            }}>
+              <img src={sp.logo_url} alt="Sponsor" style={{ maxWidth: '100%', maxHeight: 60, objectFit: 'contain' }}
+                onError={(e) => { e.target.style.display = 'none'; }} />
+              <div style={{ fontSize: '0.7rem', color: 'var(--slate-400)', marginTop: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {sp.link_url || sp.logo_url}
+              </div>
+              <button
+                onClick={() => handleDelete(sp.id)}
+                style={{ position: 'absolute', top: 4, right: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--red-500)' }}
+                title="Remove"
+              >✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ flex: '2 1 200px' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--slate-500)', marginBottom: '0.2rem' }}>Logo Image URL *</label>
+          <input value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png"
+            style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--slate-300)', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)' }} />
+        </div>
+        <div style={{ flex: '1 1 150px' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--slate-500)', marginBottom: '0.2rem' }}>Link URL</label>
+          <input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://sponsor.com"
+            style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--slate-300)', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)' }} />
+        </div>
+        <button className="btn btn-primary" onClick={handleAdd} disabled={adding || !logoUrl.trim()}>
+          {adding ? 'Adding...' : '+ Add'}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -47,17 +130,14 @@ export default function EventDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Add team form
   const [teamName, setTeamName] = useState('');
   const [players, setPlayers] = useState('');
   const [addingTeam, setAddingTeam] = useState(false);
 
-  // Bulk import
   const [bulkText, setBulkText] = useState('');
   const [importing, setImporting] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
 
-  // Toast
   const [toast, setToast] = useState('');
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -123,12 +203,26 @@ export default function EventDetail() {
     }
   };
 
+  const handleLeaderboardToggle = async (visible) => {
+    try {
+      await api.setLeaderboardVisibility(eventId, visible);
+      showToast(visible ? 'Leaderboard visible' : 'Leaderboard hidden');
+      load();
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  };
+
   if (loading) return <div className="page-shell"><div className="loading">Loading...</div></div>;
   if (error) return <div className="page-shell"><div className="card" style={{ color: 'var(--red-500)' }}>{error}</div></div>;
   if (!data) return null;
 
-  const { event, holes, teams } = data;
+  const { event, holes, teams, sponsors, org } = data;
   const totalPar = holes.reduce((sum, h) => sum + h.par, 0);
+  const lbVisible = event.leaderboard_visible === 1 || event.leaderboard_visible === true;
+
+  // Public URLs
+  const publicBase = org ? `${origin}/o/${org.slug}/e/${event.slug}` : null;
 
   return (
     <div className="page-shell">
@@ -144,18 +238,44 @@ export default function EventDetail() {
             {event.holes} holes · Par {totalPar} {event.date && `· ${event.date}`}
           </div>
         </div>
-        <div className="status-controls">
-          <StatusBadge status={event.status} />
+        <StatusBadge status={event.status} />
+      </div>
+
+      {/* Controls Card */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <h2 style={{ marginBottom: '1rem' }}>⚡ Event Controls</h2>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
           {event.status === 'draft' && (
-            <button className="btn btn-primary btn-sm" onClick={() => handleStatusChange('live')}>Go Live</button>
+            <button className="btn btn-primary" onClick={() => handleStatusChange('live')}>▶ Set to LIVE</button>
           )}
           {event.status === 'live' && (
-            <button className="btn btn-secondary btn-sm" onClick={() => handleStatusChange('completed')}>Complete</button>
+            <>
+              <button className="btn btn-danger" onClick={() => handleStatusChange('completed')}>🔒 Lock & Complete</button>
+            </>
           )}
           {event.status === 'completed' && (
-            <button className="btn btn-secondary btn-sm" onClick={() => handleStatusChange('live')}>Reopen</button>
+            <button className="btn btn-secondary" onClick={() => handleStatusChange('live')}>↩ Reopen Event</button>
+          )}
+
+          <div style={{ borderLeft: '1px solid var(--slate-200)', margin: '0 0.25rem' }} />
+
+          {lbVisible ? (
+            <button className="btn btn-secondary" onClick={() => handleLeaderboardToggle(false)}>👁 Hide Leaderboard</button>
+          ) : (
+            <button className="btn btn-primary" onClick={() => handleLeaderboardToggle(true)}>👁 Show Leaderboard</button>
           )}
         </div>
+
+        {/* Public Links */}
+        {publicBase && (
+          <div style={{ background: 'var(--green-50)', borderRadius: 'var(--radius-md)', padding: '0.75rem 1rem' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--green-800)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Public Links</div>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
+              <a href={`${publicBase}/leaderboard`} target="_blank" rel="noopener">📊 Leaderboard</a>
+              <a href={`${publicBase}/tv`} target="_blank" rel="noopener">📺 TV Mode</a>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Par Summary */}
@@ -174,6 +294,9 @@ export default function EventDetail() {
           ))}
         </div>
       </div>
+
+      {/* Sponsors */}
+      <SponsorSection eventId={eventId} sponsors={sponsors} onUpdate={load} />
 
       {/* Teams */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>

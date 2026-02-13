@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { api } from '../api';
 
 function ScoreDiff({ strokes, par }) {
@@ -7,6 +7,11 @@ function ScoreDiff({ strokes, par }) {
   if (diff < 0) return <span className="score-diff under">{diff}</span>;
   if (diff > 0) return <span className="score-diff over">+{diff}</span>;
   return <span className="score-diff even">E</span>;
+}
+
+function formatToPar(val) {
+  if (val === 0) return 'E';
+  return val > 0 ? `+${val}` : `${val}`;
 }
 
 export default function ScoreEntry() {
@@ -32,15 +37,10 @@ export default function ScoreEntry() {
 
   useEffect(() => { load(); }, [load]);
 
-  // When hole changes, prefill strokes if already entered
   useEffect(() => {
     if (!ctx) return;
     const existing = ctx.scores[selectedHole];
-    if (existing) {
-      setStrokes(String(existing.strokes));
-    } else {
-      setStrokes('');
-    }
+    setStrokes(existing ? String(existing.strokes) : '');
   }, [selectedHole, ctx]);
 
   const showToast = (msg) => {
@@ -57,7 +57,6 @@ export default function ScoreEntry() {
       setCtx((prev) => ({ ...prev, scores: result.scores }));
       showToast('Saved ✓');
 
-      // Auto-advance to next empty hole
       const totalHoles = ctx.event.holes;
       for (let i = 1; i <= totalHoles; i++) {
         const nextHole = ((selectedHole - 1 + i) % totalHoles) + 1;
@@ -87,13 +86,15 @@ export default function ScoreEntry() {
 
   const { team, event, pars, scores } = ctx;
   const isLocked = event.locked_at || event.status === 'completed';
+  const isNotLive = event.status !== 'live' && event.status !== 'completed';
   const totalHoles = event.holes;
   const currentPar = pars[selectedHole] || 4;
 
   // Calculate totals
   const holesEntered = Object.keys(scores).length;
   const totalStrokes = Object.values(scores).reduce((sum, s) => sum + s.strokes, 0);
-  const totalPar = Object.keys(scores).reduce((sum, h) => sum + (pars[h] || 0), 0);
+  const totalParDone = Object.keys(scores).reduce((sum, h) => sum + (pars[h] || 0), 0);
+  const toPar = totalStrokes - totalParDone;
 
   return (
     <div className="score-page">
@@ -101,16 +102,41 @@ export default function ScoreEntry() {
       <div className="score-header">
         <h1>{event.name}</h1>
         <div className="team">{team.team_name}</div>
-        {event.status !== 'live' && (
-          <div style={{ marginTop: '0.5rem' }}>
-            <span className={`badge badge-${event.status}`}>{event.status}</span>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
+          {event.status === 'live' && <span className="badge badge-live" style={{ fontSize: '0.7rem' }}>● LIVE</span>}
+          {event.status === 'completed' && <span className="badge badge-completed">FINAL</span>}
+          {event.status === 'draft' && <span className="badge badge-draft">DRAFT</span>}
+        </div>
       </div>
+
+      {/* To-Par Summary */}
+      {holesEntered > 0 && (
+        <div className="score-topar-bar">
+          <div className="score-topar-item">
+            <div className="score-topar-label">To Par</div>
+            <div className={`score-topar-val ${toPar < 0 ? 'under' : toPar > 0 ? 'over' : 'even'}`}>
+              {formatToPar(toPar)}
+            </div>
+          </div>
+          <div className="score-topar-item">
+            <div className="score-topar-label">Thru</div>
+            <div className="score-topar-val">{holesEntered}</div>
+          </div>
+          <div className="score-topar-item">
+            <div className="score-topar-label">Strokes</div>
+            <div className="score-topar-val">{totalStrokes}</div>
+          </div>
+        </div>
+      )}
 
       {isLocked && (
         <div className="locked-banner">
-          🔒 This event is completed. Scores are locked.
+          🔒 Round Complete — Scores are locked
+        </div>
+      )}
+      {isNotLive && !isLocked && (
+        <div className="locked-banner" style={{ background: 'var(--slate-100)', borderColor: 'var(--slate-200)' }}>
+          Event is not live yet. Scoring is read-only.
         </div>
       )}
 
@@ -133,7 +159,7 @@ export default function ScoreEntry() {
           Hole {selectedHole}
         </div>
         <div className="par-display">Par <strong>{currentPar}</strong></div>
-        {isLocked ? (
+        {isLocked || isNotLive ? (
           <div style={{ fontSize: '2.5rem', fontWeight: 600, color: 'var(--green-900)', padding: '0.5rem 0' }}>
             {scores[selectedHole] ? scores[selectedHole].strokes : '—'}
             {scores[selectedHole] && <ScoreDiff strokes={scores[selectedHole].strokes} par={currentPar} />}
@@ -191,20 +217,16 @@ export default function ScoreEntry() {
                     <td style={{ fontWeight: s ? 600 : 400, color: s ? 'var(--slate-800)' : 'var(--slate-300)' }}>
                       {s ? s.strokes : '—'}
                     </td>
-                    <td>
-                      {s && <ScoreDiff strokes={s.strokes} par={par} />}
-                    </td>
+                    <td>{s && <ScoreDiff strokes={s.strokes} par={par} />}</td>
                   </tr>
                 );
               })}
-              {holesEntered > 0 && (
-                <tr className="total-row">
-                  <td>Total</td>
-                  <td>{totalPar}</td>
-                  <td>{totalStrokes}</td>
-                  <td><ScoreDiff strokes={totalStrokes} par={totalPar} /></td>
-                </tr>
-              )}
+              <tr className="total-row">
+                <td>Total</td>
+                <td>{totalParDone}</td>
+                <td>{totalStrokes}</td>
+                <td><ScoreDiff strokes={totalStrokes} par={totalParDone} /></td>
+              </tr>
             </tbody>
           </table>
         </div>

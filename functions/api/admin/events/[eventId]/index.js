@@ -8,12 +8,18 @@ export async function onRequestGet(context) {
   const event = await db.prepare('SELECT * FROM events WHERE id = ?').bind(eventId).first();
   if (!event) return err('Event not found', 404);
 
+  const org = await db.prepare('SELECT slug, name FROM organizations WHERE id = ?').bind(event.org_id).first();
+
   const { results: eventHoles } = await db.prepare(
     'SELECT hole_number, par FROM event_holes WHERE event_id = ? ORDER BY hole_number'
   ).bind(eventId).all();
 
   const { results: teams } = await db.prepare(
     'SELECT id, team_name, players_json, access_token, starting_hole, created_at FROM teams WHERE event_id = ? ORDER BY created_at'
+  ).bind(eventId).all();
+
+  const { results: sponsors } = await db.prepare(
+    'SELECT * FROM sponsors WHERE event_id = ? ORDER BY display_order ASC'
   ).bind(eventId).all();
 
   let allScores = [];
@@ -33,5 +39,11 @@ export async function onRequestGet(context) {
       .reduce((acc, s) => { acc[s.hole_number] = s.strokes; return acc; }, {}),
   }));
 
-  return json({ event, holes: eventHoles, teams: teamsWithScores });
+  return json({
+    event,
+    org: org ? { slug: org.slug, name: org.name } : null,
+    holes: eventHoles,
+    teams: teamsWithScores,
+    sponsors,
+  });
 }
