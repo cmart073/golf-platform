@@ -16,17 +16,28 @@ export async function onRequestPost(context) {
   if (strokesNum < 1 || strokesNum > 20) return err('Strokes must be 1-20');
 
   const team = await db.prepare(
-    'SELECT id, event_id FROM teams WHERE access_token = ?'
+    'SELECT id, event_id, locked_at FROM teams WHERE access_token = ?'
   ).bind(accessToken).first();
   if (!team) return err('Invalid access token', 404);
+
+  // Check TEAM lock (golfer submitted)
+  if (team.locked_at) {
+    return err('Your scores have been submitted and are locked', 403);
+  }
 
   const event = await db.prepare(
     'SELECT id, holes, status, locked_at FROM events WHERE id = ?'
   ).bind(team.event_id).first();
   if (!event) return err('Event not found', 404);
 
+  // Check EVENT lock
   if (event.locked_at || event.status === 'completed') {
     return err('Event is locked — scores cannot be changed', 403);
+  }
+
+  // Check event is live
+  if (event.status !== 'live') {
+    return err('Event is not live yet', 403);
   }
 
   if (holeNum < 1 || holeNum > event.holes) {

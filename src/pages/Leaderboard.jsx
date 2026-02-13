@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { api } from '../api';
 
 function formatToPar(val) {
@@ -19,9 +19,7 @@ function RankBadge({ rank }) {
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       width: 32, height: 32, borderRadius: '50%', fontSize: '0.85rem', fontWeight: 700,
       background: style.bg, color: style.color, border: `2px solid ${style.border}`,
-    }}>
-      {rank}
-    </span>
+    }}>{rank}</span>
   );
 }
 
@@ -37,8 +35,6 @@ export default function Leaderboard() {
   const fetchData = async () => {
     try {
       const d = await api.getLeaderboard(orgSlug, eventSlug);
-
-      // Track recently updated teams
       if (prevTeamsRef.current) {
         const prevMap = {};
         prevTeamsRef.current.forEach(t => { prevMap[t.id] = t; });
@@ -55,15 +51,11 @@ export default function Leaderboard() {
         }
       }
       prevTeamsRef.current = d.teams;
-
       setData(d);
       setLastFetch(new Date());
       setError('');
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => {
@@ -82,7 +74,6 @@ export default function Leaderboard() {
 
   return (
     <div className="page-shell" style={{ maxWidth: 800 }}>
-      {/* Header */}
       <div className="lb-header">
         {org && <div className="lb-org">{org.name}</div>}
         <h1 className="lb-title">{event.name}</h1>
@@ -91,11 +82,10 @@ export default function Leaderboard() {
           <span>Par {totals.total_par}</span>
           <span>{event.holes} holes</span>
           {isLive && <span className="badge badge-live" style={{ fontSize: '0.7rem' }}>● LIVE</span>}
-          {isCompleted && <span className="badge badge-completed">FINAL</span>}
+          {isCompleted && <span className="badge badge-completed">FINAL RESULTS</span>}
         </div>
       </div>
 
-      {/* Hidden state */}
       {hidden ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
           <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🏌️</div>
@@ -106,7 +96,6 @@ export default function Leaderboard() {
         <div className="card empty-state">No teams have entered scores yet.</div>
       ) : (
         <>
-          {/* Leaderboard table */}
           <div className="lb-table-wrap">
             <table className="lb-table">
               <thead>
@@ -123,13 +112,13 @@ export default function Leaderboard() {
                   const rank = i + 1;
                   const isUpdated = recentlyUpdated.has(team.id);
                   return (
-                    <tr key={team.id}
-                      className={`lb-row ${isUpdated ? 'lb-row-updated' : ''}`}
-                      style={{ transition: 'all 0.4s ease' }}
-                    >
+                    <tr key={team.id} className={`lb-row ${isUpdated ? 'lb-row-updated' : ''}`}>
                       <td><RankBadge rank={rank} /></td>
                       <td>
-                        <div className="lb-team-name">{team.team_name}</div>
+                        <div className="lb-team-name">
+                          {team.team_name}
+                          {team.submitted && <span className="lb-submitted-icon" title="Scores submitted">✓</span>}
+                        </div>
                         {team.last_updated && (
                           <div className="lb-team-updated">
                             {new Date(team.last_updated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
@@ -143,10 +132,8 @@ export default function Leaderboard() {
                       </td>
                       <td style={{ textAlign: 'center', color: 'var(--slate-500)', fontSize: '0.9rem' }}>
                         {team.holes_completed === event.holes ? (
-                          <span style={{ color: 'var(--green-700)' }}>F</span>
-                        ) : (
-                          team.holes_completed
-                        )}
+                          <span style={{ color: 'var(--green-700)', fontWeight: 600 }}>F</span>
+                        ) : team.holes_completed}
                       </td>
                       <td style={{ textAlign: 'center', color: 'var(--slate-400)', fontSize: '0.85rem' }}>
                         {team.projected_total}
@@ -157,8 +144,6 @@ export default function Leaderboard() {
               </tbody>
             </table>
           </div>
-
-          {/* Last updated */}
           {lastFetch && (
             <div className="lb-footer">
               Last updated {lastFetch.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}

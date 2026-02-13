@@ -15,7 +15,7 @@ export async function onRequestGet(context) {
   ).bind(eventId).all();
 
   const { results: teams } = await db.prepare(
-    'SELECT id, team_name, players_json, access_token, starting_hole, created_at FROM teams WHERE event_id = ? ORDER BY created_at'
+    'SELECT id, team_name, players_json, access_token, starting_hole, locked_at, created_at FROM teams WHERE event_id = ? ORDER BY created_at'
   ).bind(eventId).all();
 
   const { results: sponsors } = await db.prepare(
@@ -26,7 +26,7 @@ export async function onRequestGet(context) {
   if (teams.length > 0) {
     const placeholders = teams.map(() => '?').join(',');
     const { results } = await db.prepare(
-      `SELECT team_id, hole_number, strokes FROM hole_scores WHERE team_id IN (${placeholders})`
+      `SELECT team_id, hole_number, strokes, updated_at, updated_by FROM hole_scores WHERE team_id IN (${placeholders}) ORDER BY hole_number`
     ).bind(...teams.map(t => t.id)).all();
     allScores = results;
   }
@@ -36,7 +36,10 @@ export async function onRequestGet(context) {
     players: t.players_json ? JSON.parse(t.players_json) : [],
     scores: allScores
       .filter(s => s.team_id === t.id)
-      .reduce((acc, s) => { acc[s.hole_number] = s.strokes; return acc; }, {}),
+      .reduce((acc, s) => {
+        acc[s.hole_number] = { strokes: s.strokes, updated_at: s.updated_at, updated_by: s.updated_by };
+        return acc;
+      }, {}),
   }));
 
   return json({

@@ -6,7 +6,7 @@ export async function onRequestGet(context) {
   const accessToken = context.params.accessToken;
 
   const team = await db.prepare(
-    'SELECT id, event_id, team_name, players_json, access_token FROM teams WHERE access_token = ?'
+    'SELECT id, event_id, team_name, players_json, access_token, locked_at FROM teams WHERE access_token = ?'
   ).bind(accessToken).first();
 
   if (!team) return err('Invalid access token', 404);
@@ -35,6 +35,7 @@ export async function onRequestGet(context) {
       id: team.id,
       team_name: team.team_name,
       players: team.players_json ? JSON.parse(team.players_json) : [],
+      locked_at: team.locked_at,
     },
     event: {
       id: event.id,
