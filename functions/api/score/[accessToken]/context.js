@@ -1,29 +1,26 @@
-import { json, err } from '../../../../_shared.js';
+function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
+function err(message, status = 400) { return json({ error: message }, status); }
 
 export async function onRequestGet(context) {
   const db = context.env.DB;
   const accessToken = context.params.accessToken;
 
-  // Find team by token
   const team = await db.prepare(
     'SELECT id, event_id, team_name, players_json, access_token FROM teams WHERE access_token = ?'
   ).bind(accessToken).first();
 
   if (!team) return err('Invalid access token', 404);
 
-  // Get event
   const event = await db.prepare(
     'SELECT id, name, holes, status, locked_at, date FROM events WHERE id = ?'
   ).bind(team.event_id).first();
 
   if (!event) return err('Event not found', 404);
 
-  // Get event holes (pars)
   const { results: eventHoles } = await db.prepare(
     'SELECT hole_number, par FROM event_holes WHERE event_id = ? ORDER BY hole_number'
   ).bind(event.id).all();
 
-  // Get existing scores
   const { results: scores } = await db.prepare(
     'SELECT hole_number, strokes, updated_at FROM hole_scores WHERE team_id = ? ORDER BY hole_number'
   ).bind(team.id).all();

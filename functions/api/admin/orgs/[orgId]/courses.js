@@ -1,4 +1,7 @@
-import { json, err, newId, now } from '../../../../_shared.js';
+function newId(prefix = '') { return prefix + crypto.randomUUID().replace(/-/g, '').slice(0, 20); }
+function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
+function err(message, status = 400) { return json({ error: message }, status); }
+function now() { return new Date().toISOString(); }
 
 export async function onRequestGet(context) {
   const db = context.env.DB;
@@ -21,12 +24,10 @@ export async function onRequestPost(context) {
   const courseId = newId('crs_');
   const timestamp = now();
 
-  // Create course
   await db.prepare(
     'INSERT INTO courses (id, org_id, name, city, state, created_at) VALUES (?, ?, ?, ?, ?, ?)'
   ).bind(courseId, orgId, name, city || null, state || null, timestamp).run();
 
-  // Create course holes
   const stmts = [];
   for (let h = 1; h <= 18; h++) {
     const par = parseInt(pars[String(h)]);

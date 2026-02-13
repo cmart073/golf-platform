@@ -1,4 +1,5 @@
-import { json, err } from '../../../../_shared.js';
+function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
+function err(message, status = 400) { return json({ error: message }, status); }
 
 export async function onRequestGet(context) {
   const db = context.env.DB;
@@ -15,18 +16,15 @@ export async function onRequestGet(context) {
     'SELECT id, team_name, players_json, access_token, starting_hole, created_at FROM teams WHERE event_id = ? ORDER BY created_at'
   ).bind(eventId).all();
 
-  // Get scores for all teams
-  const teamIds = teams.map(t => t.id);
   let allScores = [];
-  if (teamIds.length > 0) {
-    const placeholders = teamIds.map(() => '?').join(',');
+  if (teams.length > 0) {
+    const placeholders = teams.map(() => '?').join(',');
     const { results } = await db.prepare(
       `SELECT team_id, hole_number, strokes FROM hole_scores WHERE team_id IN (${placeholders})`
-    ).bind(...teamIds).all();
+    ).bind(...teams.map(t => t.id)).all();
     allScores = results;
   }
 
-  // Attach scores to teams
   const teamsWithScores = teams.map(t => ({
     ...t,
     players: t.players_json ? JSON.parse(t.players_json) : [],
@@ -35,9 +33,5 @@ export async function onRequestGet(context) {
       .reduce((acc, s) => { acc[s.hole_number] = s.strokes; return acc; }, {}),
   }));
 
-  return json({
-    event,
-    holes: eventHoles,
-    teams: teamsWithScores,
-  });
+  return json({ event, holes: eventHoles, teams: teamsWithScores });
 }

@@ -1,4 +1,13 @@
-import { json, err, newId, newToken, now } from '../../../../../_shared.js';
+function newId(prefix = '') { return prefix + crypto.randomUUID().replace(/-/g, '').slice(0, 20); }
+function newToken(length = 32) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const arr = new Uint8Array(length);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => chars[b % chars.length]).join('');
+}
+function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
+function err(message, status = 400) { return json({ error: message }, status); }
+function now() { return new Date().toISOString(); }
 
 export async function onRequestPost(context) {
   const db = context.env.DB;
@@ -8,7 +17,6 @@ export async function onRequestPost(context) {
 
   if (!rows || typeof rows !== 'string') return err('rows string required');
 
-  // Verify event exists
   const event = await db.prepare('SELECT id FROM events WHERE id = ?').bind(eventId).first();
   if (!event) return err('Event not found', 404);
 

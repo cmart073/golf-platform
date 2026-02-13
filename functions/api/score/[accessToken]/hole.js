@@ -1,4 +1,7 @@
-import { json, err, newId, now } from '../../../../_shared.js';
+function newId(prefix = '') { return prefix + crypto.randomUUID().replace(/-/g, '').slice(0, 20); }
+function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
+function err(message, status = 400) { return json({ error: message }, status); }
+function now() { return new Date().toISOString(); }
 
 export async function onRequestPost(context) {
   const db = context.env.DB;
@@ -6,20 +9,17 @@ export async function onRequestPost(context) {
   const body = await context.request.json();
   const { hole_number, strokes } = body;
 
-  // Validate inputs
   if (!hole_number || !strokes) return err('hole_number and strokes required');
   const holeNum = parseInt(hole_number);
   const strokesNum = parseInt(strokes);
   if (isNaN(holeNum) || isNaN(strokesNum)) return err('Invalid numbers');
   if (strokesNum < 1 || strokesNum > 20) return err('Strokes must be 1-20');
 
-  // Find team
   const team = await db.prepare(
     'SELECT id, event_id FROM teams WHERE access_token = ?'
   ).bind(accessToken).first();
   if (!team) return err('Invalid access token', 404);
 
-  // Check event status
   const event = await db.prepare(
     'SELECT id, holes, status, locked_at FROM events WHERE id = ?'
   ).bind(team.event_id).first();
@@ -33,7 +33,6 @@ export async function onRequestPost(context) {
     return err(`Hole must be between 1 and ${event.holes}`);
   }
 
-  // Verify par exists for this hole
   const eventHole = await db.prepare(
     'SELECT par FROM event_holes WHERE event_id = ? AND hole_number = ?'
   ).bind(event.id, holeNum).first();
@@ -41,7 +40,6 @@ export async function onRequestPost(context) {
 
   const timestamp = now();
 
-  // Upsert score
   const existing = await db.prepare(
     'SELECT id FROM hole_scores WHERE team_id = ? AND hole_number = ?'
   ).bind(team.id, holeNum).first();
@@ -56,7 +54,6 @@ export async function onRequestPost(context) {
     ).bind(newId('hs_'), team.id, holeNum, strokesNum, timestamp, 'team').run();
   }
 
-  // Return updated scores
   const { results: scores } = await db.prepare(
     'SELECT hole_number, strokes, updated_at FROM hole_scores WHERE team_id = ? ORDER BY hole_number'
   ).bind(team.id).all();
