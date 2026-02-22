@@ -11,7 +11,7 @@ import TVMode from './pages/TVMode';
 function PublicBar() {
   return (
     <div className="top-bar no-print">
-      <img src="/logo.png" alt="FairwaysLive" style={{ height: '36px', objectFit: 'contain' }} />
+      <img src="/logo.png" alt="FairwaysLive" style={{ height: '56px', objectFit: 'contain' }} />
     </div>
   );
 }
@@ -20,7 +20,7 @@ function AdminBar() {
   return (
     <div className="top-bar top-bar-admin no-print">
       <Link to="/admin" style={{ display: 'flex', alignItems: 'center' }}>
-        <img src="/logo.png" alt="FairwaysLive" style={{ height: '36px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+        <img src="/logo.png" alt="FairwaysLive" style={{ height: '56px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
       </Link>
       <span className="admin-badge-nav">GOD MODE</span>
     </div>
