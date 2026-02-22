@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="600" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Shield -->
+  <defs>
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8EC5FC;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E0F3FF;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1B5E20;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#66BB6A;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <path d="M600 80 L820 150 L780 380 L600 480 L420 380 L380 150 Z"
+        fill="url(#skyGrad)" stroke="#0D2B45" stroke-width="10"/>
+
+  <!-- Fairway Waves -->
+  <path d="M430 330 Q600 280 770 330 L770 360 Q600 310 430 360 Z"
+        fill="url(#greenGrad)"/>
+
+  <!-- Golf Ball -->
+  <circle cx="600" cy="330" r="45" fill="#FFFFFF" stroke="#CCCCCC" stroke-width="3"/>
+
+  <!-- Flag -->
+  <line x1="680" y1="220" x2="680" y2="350" stroke="#333333" stroke-width="6"/>
+  <path d="M680 220 Q730 235 680 260 Z" fill="#D32F2F"/>
+
+  <!-- Brand Name -->
+  <text x="600" y="550" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="90">
+    <tspan fill="#1B5E20">Fairways</tspan><tspan fill="#0D47A1">Live</tspan>
+  </text>
+
+</svg>

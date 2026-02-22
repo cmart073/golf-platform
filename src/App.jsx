@@ -11,7 +11,7 @@ import TVMode from './pages/TVMode';
 function PublicBar() {
   return (
     <div className="top-bar no-print">
-      <img src="/logo.png" alt="FairwaysLive" style={{ height: '36px', objectFit: 'contain' }} />
+      <img src="/logo.svg" alt="FairwaysLive" style={{ height: '56px', objectFit: 'contain' }} />
     </div>
   );
 }
@@ -20,7 +20,7 @@ function AdminBar() {
   return (
     <div className="top-bar top-bar-admin no-print">
       <Link to="/admin" style={{ display: 'flex', alignItems: 'center' }}>
-        <img src="/logo.png" alt="FairwaysLive" style={{ height: '36px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+        <img src="/logo.svg" alt="FairwaysLive" style={{ height: '56px', objectFit: 'contain' }} />
       </Link>
       <span className="admin-badge-nav">GOD MODE</span>
     </div>
@@ -49,7 +49,7 @@ export default function App() {
         <Route path="*" element={
           <><PublicBar />
             <div className="page-shell" style={{ textAlign: 'center', paddingTop: '4rem' }}>
-              <img src="/logo.png" alt="FairwaysLive" style={{ height: '64px', marginBottom: '1rem' }} />
+              <img src="/logo.svg" alt="FairwaysLive" style={{ height: '64px', marginBottom: '1rem' }} />
               <p style={{ marginTop: '0.75rem', color: 'var(--slate-500)' }}>Live golf event scoring platform.</p>
             </div>
           </>
