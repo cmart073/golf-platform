@@ -38,16 +38,28 @@ function strokePlay(teams, byTeamHole) {
   }).sort((a, b) => a.net_strokes - b.net_strokes);
 }
 
+/**
+ * Match play: per-hole, award 1 point to lowest net score.
+ * Net is calculated as strokes minus the per-hole handicap allocation.
+ * Handicap strokes are distributed across holes proportionally (handicap/holeCount).
+ * In a multi-team format this is the fairest simple approach since we don't have
+ * stroke-index data per hole.
+ */
 function matchPlay(teams, byTeamHole, holeCount) {
   const points = {};
   teams.forEach((t) => { points[t.id] = 0; });
+
+  // Find min handicap so we do difference-based allocation
+  const minHcp = Math.min(...teams.map((t) => toNum(t.handicap_strokes, 0)));
 
   for (let hole = 1; hole <= holeCount; hole++) {
     const holeScores = teams
       .map((t) => {
         const strokes = byTeamHole[t.id]?.[hole];
-        if (!strokes) return null;
-        const net = strokes - toNum(t.handicap_strokes, 0) / holeCount;
+        if (strokes == null) return null;
+        // Each team gets (their_hcp - min_hcp) strokes allocated across holes
+        const relativeHcp = toNum(t.handicap_strokes, 0) - minHcp;
+        const net = strokes - relativeHcp / holeCount;
         return { team: t, net };
       })
       .filter(Boolean);
@@ -66,17 +78,25 @@ function matchPlay(teams, byTeamHole, holeCount) {
   })).sort((a, b) => b.points - a.points);
 }
 
+/**
+ * Skins: per-hole outright winner (no ties) wins a skin.
+ * Tied holes carry over to the next hole.
+ * Uses difference-based handicap allocation (same as matchPlay).
+ */
 function skins(teams, byTeamHole, holeCount) {
   const wins = {};
   teams.forEach((t) => { wins[t.id] = 0; });
   let carry = 1;
 
+  const minHcp = Math.min(...teams.map((t) => toNum(t.handicap_strokes, 0)));
+
   for (let hole = 1; hole <= holeCount; hole++) {
     const holeScores = teams
       .map((t) => {
         const strokes = byTeamHole[t.id]?.[hole];
-        if (!strokes) return null;
-        const net = strokes - toNum(t.handicap_strokes, 0) / holeCount;
+        if (strokes == null) return null;
+        const relativeHcp = toNum(t.handicap_strokes, 0) - minHcp;
+        const net = strokes - relativeHcp / holeCount;
         return { team: t, net };
       })
       .filter(Boolean);
@@ -121,7 +141,11 @@ export function computeGameResults({ event, teams, scores, manualPoints }) {
   if (enabled.includes('stroke_play')) out.stroke_play = strokePlay(teams, byTeamHole);
   if (enabled.includes('match_play')) out.match_play = matchPlay(teams, byTeamHole, holeCount);
   if (enabled.includes('skins')) out.skins = skins(teams, byTeamHole, holeCount);
-  if (enabled.includes('bingo') || enabled.includes('bango') || enabled.includes('bongo')) {
+  if (
+    enabled.includes('bingo') &&
+    enabled.includes('bango') &&
+    enabled.includes('bongo')
+  ) {
     out.bingo_bango_bongo = bingoBangoBongo(teams, manualPoints);
   }
 
