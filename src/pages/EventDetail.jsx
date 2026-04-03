@@ -523,6 +523,23 @@ export default function EventDetail() {
             </div>
           </div>
         )}
+
+        {event.scorer_token && (
+          <div className="god-scorer-link">
+            <div className="god-public-links-label">🎮 MATCH SCORER LINK</div>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <a href={`${origin}/match/${event.scorer_token}`} target="_blank" rel="noopener" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                📱 Open Match Scorer
+              </a>
+              <code style={{ fontSize: '0.7rem', color: 'var(--slate-500)', background: 'var(--slate-100)', padding: '0.2rem 0.5rem', borderRadius: 4 }}>
+                {event.scorer_token.slice(0, 8)}...
+              </code>
+              <button className="copy-btn" onClick={() => { navigator.clipboard.writeText(`${origin}/match/${event.scorer_token}`); showToast('Scorer link copied!'); }}>
+                Copy
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Weekly Match / Game Settings */}
