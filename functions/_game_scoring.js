@@ -98,11 +98,11 @@ function skins(teams, byTeamHole, holeCount) {
   })).sort((a, b) => b.skins_won - a.skins_won);
 }
 
-function manualGame(teams, manualPoints, gameType) {
+function bingoBangoBongo(teams, manualPoints) {
   const totals = {};
   teams.forEach((t) => { totals[t.id] = 0; });
   manualPoints
-    .filter((p) => p.game_type === gameType)
+    .filter((p) => ['bingo', 'bango', 'bongo'].includes(p.game_type))
     .forEach((p) => { totals[p.team_id] = toNum(totals[p.team_id], 0) + toNum(p.points, 0); });
 
   return teams.map((t) => ({
@@ -121,9 +121,9 @@ export function computeGameResults({ event, teams, scores, manualPoints }) {
   if (enabled.includes('stroke_play')) out.stroke_play = strokePlay(teams, byTeamHole);
   if (enabled.includes('match_play')) out.match_play = matchPlay(teams, byTeamHole, holeCount);
   if (enabled.includes('skins')) out.skins = skins(teams, byTeamHole, holeCount);
-  if (enabled.includes('bingo')) out.bingo = manualGame(teams, manualPoints, 'bingo');
-  if (enabled.includes('bango')) out.bango = manualGame(teams, manualPoints, 'bango');
-  if (enabled.includes('bongo')) out.bongo = manualGame(teams, manualPoints, 'bongo');
+  if (enabled.includes('bingo') || enabled.includes('bango') || enabled.includes('bongo')) {
+    out.bingo_bango_bongo = bingoBangoBongo(teams, manualPoints);
+  }
 
   return out;
 }

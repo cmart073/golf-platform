@@ -2,6 +2,22 @@ function newId(prefix = '') { return prefix + crypto.randomUUID().replace(/-/g, 
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function err(message, status = 400) { return json({ error: message }, status); }
 function now() { return new Date().toISOString(); }
+function normalizeGames(inputGames) {
+  const validGames = ['stroke_play', 'match_play', 'skins', 'bingo', 'bango', 'bongo'];
+  const raw = Array.isArray(inputGames) ? inputGames.filter((g) => validGames.includes(g)) : ['stroke_play'];
+
+  if (raw.includes('stroke_play') && raw.includes('match_play')) {
+    return { error: 'Choose either stroke_play or match_play, not both' };
+  }
+
+  const hasAnyBbb = raw.includes('bingo') || raw.includes('bango') || raw.includes('bongo');
+  if (hasAnyBbb) {
+    raw.push('bingo', 'bango', 'bongo');
+  }
+
+  const deduped = Array.from(new Set(raw));
+  return { games: deduped.length > 0 ? deduped : ['stroke_play'] };
+}
 
 export async function onRequestGet(context) {
   const db = context.env.DB;
@@ -36,11 +52,9 @@ export async function onRequestPost(context) {
   }
 
   const safeEventType = event_type === 'weekly_match' ? 'weekly_match' : 'tournament';
-  const validGames = ['stroke_play', 'match_play', 'skins', 'bingo', 'bango', 'bongo'];
-  const normalizedGames = Array.isArray(enabled_games)
-    ? enabled_games.filter((g) => validGames.includes(g))
-    : ['stroke_play'];
-  const enabledGamesJson = JSON.stringify(normalizedGames.length > 0 ? normalizedGames : ['stroke_play']);
+  const normalized = normalizeGames(enabled_games);
+  if (normalized.error) return err(normalized.error);
+  const enabledGamesJson = JSON.stringify(normalized.games);
 
   const eventId = newId('evt_');
   const timestamp = now();
