@@ -56,10 +56,6 @@ export async function onRequestPost(context) {
     const normalized = normalizeGames(enabled_games);
     if (normalized.error) return err(normalized.error);
     const enabledGamesJson = JSON.stringify(normalized.games);
-  const safeEventType = event_type === 'weekly_match' ? 'weekly_match' : 'tournament';
-  const normalized = normalizeGames(enabled_games);
-  if (normalized.error) return err(normalized.error);
-  const enabledGamesJson = JSON.stringify(normalized.games);
 
     const eventId = newId('evt_');
     const timestamp = now();
