@@ -53,10 +53,15 @@ export const api = {
   addSponsor: (eventId, body) => request(`/api/admin/events/${eventId}/sponsors`, { method: 'POST', body: JSON.stringify(body) }),
   deleteSponsor: (eventId, sponsorId) => request(`/api/admin/events/${eventId}/sponsors/${sponsorId}`, { method: 'DELETE' }),
 
-  // Public - Scoring
+  // Public - Scoring (individual team)
   getScoreContext: (token) => request(`/api/score/${token}/context`),
   submitScore: (token, body) => request(`/api/score/${token}/hole`, { method: 'POST', body: JSON.stringify(body) }),
   submitFinal: (token) => request(`/api/score/${token}/submit`, { method: 'POST', body: JSON.stringify({}) }),
+
+  // Public - Match Scorer (single scorecard for whole group)
+  getMatchContext: (scorerToken) => request(`/api/score/match/${scorerToken}/context`),
+  submitMatchHole: (scorerToken, body) => request(`/api/score/match/${scorerToken}/hole`, { method: 'POST', body: JSON.stringify(body) }),
+  submitMatchBBB: (scorerToken, body) => request(`/api/score/match/${scorerToken}/bbb`, { method: 'POST', body: JSON.stringify(body) }),
 
   // Public - Leaderboard
   getLeaderboard: (orgSlug, eventSlug) => request(`/api/public/org/${orgSlug}/event/${eventSlug}/leaderboard`),
