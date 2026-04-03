@@ -1,3 +1,9 @@
+function newToken(length = 32) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const arr = new Uint8Array(length);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => chars[b % chars.length]).join('');
+}
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function err(message, status = 400) { return json({ error: message }, status); }
 
@@ -23,13 +29,29 @@ export async function onRequestPost(context) {
   const normalized = normalizeGames(enabled_games);
   if (normalized.error) return err(normalized.error);
 
-  const event = await db.prepare('SELECT id FROM events WHERE id = ?').bind(eventId).first();
+  const event = await db.prepare('SELECT id, scorer_token FROM events WHERE id = ?').bind(eventId).first();
   if (!event) return err('Event not found', 404);
 
   const enabledGamesJson = JSON.stringify(normalized.games);
-  await db.prepare(
-    'UPDATE events SET event_type = ?, enabled_games_json = ? WHERE id = ?'
-  ).bind(safeType, enabledGamesJson, eventId).run();
 
-  return json({ success: true, event_type: safeType, enabled_games: JSON.parse(enabledGamesJson) });
+  // Generate scorer_token if switching to weekly_match and one doesn't exist yet
+  let scorerToken = event.scorer_token;
+  if (safeType === 'weekly_match' && !scorerToken) {
+    scorerToken = newToken(32);
+  }
+  // Clear scorer_token if switching back to tournament
+  if (safeType === 'tournament') {
+    scorerToken = null;
+  }
+
+  await db.prepare(
+    'UPDATE events SET event_type = ?, enabled_games_json = ?, scorer_token = ? WHERE id = ?'
+  ).bind(safeType, enabledGamesJson, scorerToken, eventId).run();
+
+  return json({
+    success: true,
+    event_type: safeType,
+    enabled_games: JSON.parse(enabledGamesJson),
+    scorer_token: scorerToken,
+  });
 }
