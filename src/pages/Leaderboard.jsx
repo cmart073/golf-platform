@@ -7,6 +7,30 @@ function formatToPar(val) {
   return val > 0 ? `+${val}` : `${val}`;
 }
 
+function gameLabel(key) {
+  const labels = {
+    stroke_play: 'Stroke Play',
+    match_play: 'Match Play',
+    skins: 'Skins',
+    bingo_bango_bongo: 'Bingo Bango Bongo',
+  };
+  return labels[key] ?? key.replaceAll('_', ' ');
+}
+
+function gameStat(game, row) {
+  if (game === 'stroke_play') {
+    const net = row.net_strokes;
+    const gross = row.gross_strokes;
+    if (net === 0) return 'E (net)';
+    const netStr = net > 0 ? `+${net}` : `${net}`;
+    return `${netStr} (gross: ${gross})`;
+  }
+  if (game === 'match_play') return `${row.points} pts`;
+  if (game === 'skins') return `${row.skins_won} skin${row.skins_won !== 1 ? 's' : ''}`;
+  if (game === 'bingo_bango_bongo') return `${row.points} pts`;
+  return row.net_strokes ?? row.points ?? row.skins_won;
+}
+
 function RankBadge({ rank }) {
   const colors = {
     1: { bg: '#fef3c7', color: '#92400e', border: '#fbbf24' },
@@ -71,6 +95,8 @@ export default function Leaderboard() {
   const { event, teams, totals, hidden, org, game_results } = data;
   const isLive = event.status === 'live';
   const isCompleted = event.status === 'completed';
+  const isWeeklyMatch = event.event_type === 'weekly_match';
+  const hasGameResults = game_results && Object.keys(game_results).length > 0;
 
   return (
     <div className="page-shell" style={{ maxWidth: 800 }}>
@@ -81,6 +107,7 @@ export default function Leaderboard() {
           {event.date && <span>{event.date}</span>}
           <span>Par {totals.total_par}</span>
           <span>{event.holes} holes</span>
+          {isWeeklyMatch && <span className="badge badge-draft" style={{ fontSize: '0.7rem' }}>Weekly Match</span>}
           {isLive && <span className="badge badge-live" style={{ fontSize: '0.7rem' }}>● LIVE</span>}
           {isCompleted && <span className="badge badge-completed">FINAL RESULTS</span>}
         </div>
@@ -96,6 +123,7 @@ export default function Leaderboard() {
         <div className="card empty-state">No teams have entered scores yet.</div>
       ) : (
         <>
+          {/* Stroke play / main leaderboard */}
           <div className="lb-table-wrap">
             <table className="lb-table">
               <thead>
@@ -151,18 +179,34 @@ export default function Leaderboard() {
             </div>
           )}
 
-          {game_results && Object.keys(game_results).length > 0 && (
-            <div style={{ marginTop: '1rem', display: 'grid', gap: '0.75rem' }}>
-              {Object.entries(game_results).map(([game, rows]) => (
-                <div className="card" key={game} style={{ padding: '0.75rem' }}>
-                  <div style={{ fontWeight: 700, marginBottom: '0.35rem' }}>{game.replace('_', ' ')}</div>
-                  {rows.slice(0, 3).map((r, i) => (
-                    <div key={r.team_id} style={{ fontSize: '0.9rem' }}>
-                      {i + 1}. {r.team_name} — {r.net_strokes ?? r.points ?? r.skins_won}
+          {/* Side game results — only shown for weekly match or when games beyond stroke play are active */}
+          {hasGameResults && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--green-900)', marginBottom: '0.75rem', fontSize: '1.4rem' }}>
+                🎮 Side Games
+              </h2>
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                {Object.entries(game_results).map(([game, rows]) => (
+                  <div className="card" key={game} style={{ padding: '0.75rem 1rem' }}>
+                    <div style={{ fontWeight: 700, marginBottom: '0.5rem', color: 'var(--green-800)', fontSize: '0.95rem' }}>
+                      {gameLabel(game)}
                     </div>
-                  ))}
-                </div>
-              ))}
+                    {rows.map((r, i) => (
+                      <div key={r.team_id} style={{
+                        display: 'flex', justifyContent: 'space-between',
+                        fontSize: '0.9rem', padding: '0.2rem 0',
+                        borderBottom: i < rows.length - 1 ? '1px solid var(--slate-100)' : 'none',
+                      }}>
+                        <span>
+                          <span style={{ fontWeight: 600, color: 'var(--slate-500)', marginRight: '0.5rem' }}>{i + 1}.</span>
+                          {r.team_name}
+                        </span>
+                        <span style={{ fontWeight: 600, color: 'var(--green-800)' }}>{gameStat(game, r)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </>
