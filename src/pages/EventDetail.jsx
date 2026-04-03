@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../api';
 
@@ -443,6 +443,17 @@ export default function EventDetail() {
     } catch (e) { showToast('Error: ' + e.message); }
   };
 
+  const navigate = useNavigate();
+  const handleDeleteEvent = async () => {
+    if (!data) return;
+    const name = data.event.name;
+    if (!window.confirm(`Delete "${name}"? This will permanently remove all teams, scores, and game data. This cannot be undone.`)) return;
+    try {
+      await api.deleteEvent(eventId);
+      navigate(`/admin/org/${data.event.org_id}`);
+    } catch (e) { showToast('Delete failed: ' + e.message); }
+  };
+
   if (loading) return <div className="page-shell"><div className="loading">Loading...</div></div>;
   if (error) return <div className="page-shell"><div className="card" style={{ color: 'var(--red-500)' }}>{error}</div></div>;
   if (!data) return null;
@@ -723,6 +734,21 @@ export default function EventDetail() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Danger Zone */}
+      <div className="card god-card" style={{ marginTop: '2rem', borderColor: 'var(--red-200, #fecaca)' }}>
+        <h2 style={{ color: 'var(--red-600, #dc2626)' }}>⚠️ Danger Zone</h2>
+        <p style={{ fontSize: '0.85rem', color: 'var(--slate-500)', marginBottom: '1rem' }}>
+          Permanently delete this event and all associated teams, scores, and game data. This action cannot be undone.
+        </p>
+        <button
+          className="btn"
+          style={{ background: 'var(--red-600, #dc2626)', color: 'white', border: 'none' }}
+          onClick={handleDeleteEvent}
+        >
+          🗑️ Delete Event
+        </button>
       </div>
 
       {toast && <div className="toast">{toast}</div>}

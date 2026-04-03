@@ -1,6 +1,37 @@
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function err(message, status = 400) { return json({ error: message }, status); }
 
+export async function onRequestDelete(context) {
+  const db = context.env.DB;
+  const eventId = context.params.eventId;
+
+  const event = await db.prepare('SELECT id, name FROM events WHERE id = ?').bind(eventId).first();
+  if (!event) return err('Event not found', 404);
+
+  // Get all team IDs for this event so we can cascade delete their scores
+  const { results: teams } = await db.prepare('SELECT id FROM teams WHERE event_id = ?').bind(eventId).all();
+  const teamIds = teams.map(t => t.id);
+
+  const stmts = [];
+
+  // Delete hole_scores for all teams
+  if (teamIds.length > 0) {
+    const ph = teamIds.map(() => '?').join(',');
+    stmts.push(db.prepare(`DELETE FROM hole_scores WHERE team_id IN (${ph})`).bind(...teamIds));
+  }
+
+  // Delete game_points, sponsors, event_holes, teams, then the event itself
+  stmts.push(db.prepare('DELETE FROM game_points WHERE event_id = ?').bind(eventId));
+  stmts.push(db.prepare('DELETE FROM sponsors WHERE event_id = ?').bind(eventId));
+  stmts.push(db.prepare('DELETE FROM event_holes WHERE event_id = ?').bind(eventId));
+  stmts.push(db.prepare('DELETE FROM teams WHERE event_id = ?').bind(eventId));
+  stmts.push(db.prepare('DELETE FROM events WHERE id = ?').bind(eventId));
+
+  await db.batch(stmts);
+
+  return json({ success: true, deleted: event.name });
+}
+
 export async function onRequestGet(context) {
   const db = context.env.DB;
   const eventId = context.params.eventId;

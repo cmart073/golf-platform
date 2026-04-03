@@ -230,6 +230,7 @@ export default function OrgDetail() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCourseModal, setShowCourseModal] = useState(false);
+  const [deleting, setDeleting] = useState(null);
 
   const load = async () => {
     try {
@@ -240,6 +241,19 @@ export default function OrgDetail() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId, eventName) => {
+    if (!confirm(`Delete "${eventName}"? This will permanently remove all teams, scores, and game data. This cannot be undone.`)) return;
+    setDeleting(eventId);
+    try {
+      await api.deleteEvent(eventId);
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -298,7 +312,17 @@ export default function OrgDetail() {
                       <td style={{ color: 'var(--slate-500)' }}>{e.date || '—'}</td>
                       <td>{e.holes}</td>
                       <td><span className={`badge badge-${e.status}`}>{e.status}</span></td>
-                      <td><Link to={`/admin/event/${e.id}`} className="btn btn-secondary btn-sm">Manage</Link></td>
+                      <td style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Link to={`/admin/event/${e.id}`} className="btn btn-secondary btn-sm">Manage</Link>
+                        <button
+                          className="btn btn-sm"
+                          style={{ background: 'var(--red-100, #fee2e2)', color: 'var(--red-600, #dc2626)', border: 'none' }}
+                          onClick={() => handleDeleteEvent(e.id, e.name)}
+                          disabled={deleting === e.id}
+                        >
+                          {deleting === e.id ? '...' : '🗑️'}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

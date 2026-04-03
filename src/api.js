@@ -35,6 +35,7 @@ export const api = {
   getEvents: (orgId) => request(`/api/admin/orgs/${orgId}/events`),
   createEvent: (orgId, body) => request(`/api/admin/orgs/${orgId}/events`, { method: 'POST', body: JSON.stringify(body) }),
   getEvent: (eventId) => request(`/api/admin/events/${eventId}`),
+  deleteEvent: (eventId) => request(`/api/admin/events/${eventId}`, { method: 'DELETE' }),
   getGameResults: (eventId) => request(`/api/admin/events/${eventId}/game-results`),
   updateStatus: (eventId, status) => request(`/api/admin/events/${eventId}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
   setLeaderboardVisibility: (eventId, visible) => request(`/api/admin/events/${eventId}/leaderboard-visibility`, { method: 'POST', body: JSON.stringify({ visible }) }),
