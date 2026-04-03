@@ -96,6 +96,33 @@ function CreateEventForm({ orgId, courses, onCreated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const toggleGame = (key, checked) => {
+    setEnabledGames((prev) => {
+      const current = new Set(prev);
+      if (checked) current.add(key);
+      else current.delete(key);
+
+      if (key === 'stroke_play' && checked) current.delete('match_play');
+      if (key === 'match_play' && checked) current.delete('stroke_play');
+
+      if (key === 'bingo_bango_bongo') {
+        if (checked) {
+          current.add('bingo');
+          current.add('bango');
+          current.add('bongo');
+        } else {
+          current.delete('bingo');
+          current.delete('bango');
+          current.delete('bongo');
+        }
+      }
+
+      return Array.from(current);
+    });
+  };
+
+  const hasBBB = ['bingo', 'bango', 'bongo'].every((g) => enabledGames.includes(g));
+
   const handleNameChange = (val) => {
     setName(val);
     setSlug(val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
@@ -177,18 +204,13 @@ function CreateEventForm({ orgId, courses, onCreated }) {
             ['stroke_play', 'Stroke Play'],
             ['match_play', 'Match Play'],
             ['skins', 'Skins'],
-            ['bingo', 'Bingo'],
-            ['bango', 'Bango'],
-            ['bongo', 'Bongo'],
+            ['bingo_bango_bongo', 'Bingo Bango Bongo'],
           ].map(([key, label]) => (
             <label key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               <input
                 type="checkbox"
-                checked={enabledGames.includes(key)}
-                onChange={(e) => {
-                  if (e.target.checked) setEnabledGames([...enabledGames, key]);
-                  else setEnabledGames(enabledGames.filter((g) => g !== key));
-                }}
+                checked={key === 'bingo_bango_bongo' ? hasBBB : enabledGames.includes(key)}
+                onChange={(e) => toggleGame(key, e.target.checked)}
               />
               {label}
             </label>
