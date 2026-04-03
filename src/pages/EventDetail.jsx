@@ -7,6 +7,53 @@ function StatusBadge({ status }) {
   return <span className={`badge badge-${status}`}>{status}</span>;
 }
 
+function gameLabel(key) {
+  const labels = {
+    stroke_play: 'Stroke Play',
+    match_play: 'Match Play',
+    skins: 'Skins',
+    bingo_bango_bongo: 'Bingo Bango Bongo',
+  };
+  return labels[key] ?? key.replaceAll('_', ' ');
+}
+
+function gameStat(game, row) {
+  if (game === 'stroke_play') {
+    const net = row.net_strokes;
+    if (net === 0) return 'E';
+    return net > 0 ? `+${net}` : `${net}`;
+  }
+  if (game === 'match_play') return `${row.points} pts`;
+  if (game === 'skins') return `${row.skins_won} skin${row.skins_won !== 1 ? 's' : ''}`;
+  if (game === 'bingo_bango_bongo') return `${row.points} pts`;
+  return row.net_strokes ?? row.points ?? row.skins_won;
+}
+
+/* ── Handicap editor — controlled per-team ── */
+function HandicapEditor({ teamId, initialValue, eventId, onSaved, showToast }) {
+  const [val, setVal] = useState(String(initialValue ?? 0));
+
+  const save = async () => {
+    const n = parseInt(val);
+    if (isNaN(n)) return;
+    try {
+      await api.updateHandicap(eventId, teamId, n);
+      showToast('Handicap updated');
+      onSaved();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
+  return (
+    <input
+      type="number"
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={save}
+      style={{ width: 70 }}
+    />
+  );
+}
+
 /* ── Sponsor management ── */
 function SponsorSection({ eventId, sponsors: initialSponsors, onUpdate }) {
   const [sponsors, setSponsors] = useState(initialSponsors || []);
@@ -396,14 +443,6 @@ export default function EventDetail() {
     } catch (e) { showToast('Error: ' + e.message); }
   };
 
-  const updateHandicap = async (teamId, handicap) => {
-    try {
-      await api.updateHandicap(eventId, teamId, handicap);
-      showToast('Handicap updated');
-      load();
-    } catch (e) { showToast('Error: ' + e.message); }
-  };
-
   if (loading) return <div className="page-shell"><div className="loading">Loading...</div></div>;
   if (error) return <div className="page-shell"><div className="card" style={{ color: 'var(--red-500)' }}>{error}</div></div>;
   if (!data) return null;
@@ -561,12 +600,12 @@ export default function EventDetail() {
               {Object.entries(gameResults).map(([game, rows]) => (
                 <div key={game} className="card" style={{ padding: '0.75rem' }}>
                   <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>
-                    {game === 'bingo_bango_bongo' ? 'Bingo Bango Bongo' : game.replace('_', ' ')}
+                    {gameLabel(game)}
                   </div>
                   <div style={{ fontSize: '0.9rem' }}>
                     {rows.slice(0, 5).map((r, idx) => (
                       <div key={r.team_id}>
-                        {idx + 1}. {r.team_name} — {r.net_strokes ?? r.points ?? r.skins_won}
+                        {idx + 1}. {r.team_name} — {gameStat(game, r)}
                       </div>
                     ))}
                   </div>
@@ -654,11 +693,12 @@ export default function EventDetail() {
               <div key={t.id}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.35rem', gap: '0.4rem', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>Handicap</span>
-                  <input
-                    type="number"
-                    defaultValue={t.handicap_strokes || 0}
-                    style={{ width: 70 }}
-                    onBlur={(e) => updateHandicap(t.id, e.target.value)}
+                  <HandicapEditor
+                    teamId={t.id}
+                    initialValue={t.handicap_strokes ?? 0}
+                    eventId={eventId}
+                    onSaved={load}
+                    showToast={showToast}
                   />
                 </div>
                 <TeamScorecard team={t} holes={holes} eventId={eventId} onUpdate={load} showToast={showToast} />
