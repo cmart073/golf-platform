@@ -5,7 +5,19 @@ async function request(path, options = {}) {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
   });
-  const data = await res.json();
+  const contentType = res.headers.get('content-type') || '';
+  let data = null;
+
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Request failed: ${res.status} ${res.statusText}. Expected JSON but received ${contentType || 'unknown content type'}.`);
+    }
+    throw new Error(`Unexpected non-JSON response from ${path}: ${text.slice(0, 120)}`);
+  }
+
   if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
   return data;
 }

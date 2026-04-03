@@ -268,6 +268,32 @@ export default function EventDetail() {
   const [gamePointType, setGamePointType] = useState('bingo');
   const [gamePointValue, setGamePointValue] = useState(1);
 
+  const toggleGame = (key, checked) => {
+    setEnabledGames((prev) => {
+      const current = new Set(prev);
+      if (checked) current.add(key);
+      else current.delete(key);
+
+      if (key === 'stroke_play' && checked) current.delete('match_play');
+      if (key === 'match_play' && checked) current.delete('stroke_play');
+
+      if (key === 'bingo_bango_bongo') {
+        if (checked) {
+          current.add('bingo');
+          current.add('bango');
+          current.add('bongo');
+        } else {
+          current.delete('bingo');
+          current.delete('bango');
+          current.delete('bongo');
+        }
+      }
+      return Array.from(current);
+    });
+  };
+
+  const hasBBB = ['bingo', 'bango', 'bongo'].every((g) => enabledGames.includes(g));
+
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
   const load = useCallback(async () => {
@@ -479,18 +505,13 @@ export default function EventDetail() {
               ['stroke_play', 'Stroke Play'],
               ['match_play', 'Match Play'],
               ['skins', 'Skins'],
-              ['bingo', 'Bingo'],
-              ['bango', 'Bango'],
-              ['bongo', 'Bongo'],
+              ['bingo_bango_bongo', 'Bingo Bango Bongo'],
             ].map(([key, label]) => (
               <label key={key} style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
                 <input
                   type="checkbox"
-                  checked={enabledGames.includes(key)}
-                  onChange={(e) => {
-                    if (e.target.checked) setEnabledGames([...enabledGames, key]);
-                    else setEnabledGames(enabledGames.filter((g) => g !== key));
-                  }}
+                  checked={key === 'bingo_bango_bongo' ? hasBBB : enabledGames.includes(key)}
+                  onChange={(e) => toggleGame(key, e.target.checked)}
                 />
                 {label}
               </label>
@@ -499,7 +520,7 @@ export default function EventDetail() {
         </div>
         <button className="btn btn-primary btn-sm" onClick={saveGameSettings}>Save Game Settings</button>
 
-        {(enabledGames.includes('bingo') || enabledGames.includes('bango') || enabledGames.includes('bongo')) && (
+        {hasBBB && (
           <div style={{ marginTop: '1rem', borderTop: '1px solid var(--slate-200)', paddingTop: '1rem' }}>
             <h3 style={{ fontSize: '0.95rem' }}>Manual Side-Game Points (Bingo / Bango / Bongo)</h3>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -539,7 +560,9 @@ export default function EventDetail() {
             <div style={{ display: 'grid', gap: '0.75rem' }}>
               {Object.entries(gameResults).map(([game, rows]) => (
                 <div key={game} className="card" style={{ padding: '0.75rem' }}>
-                  <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>{game.replace('_', ' ')}</div>
+                  <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>
+                    {game === 'bingo_bango_bongo' ? 'Bingo Bango Bongo' : game.replace('_', ' ')}
+                  </div>
                   <div style={{ fontSize: '0.9rem' }}>
                     {rows.slice(0, 5).map((r, idx) => (
                       <div key={r.team_id}>
