@@ -17,8 +17,9 @@ export async function onRequestGet(context) {
   const org = await db.prepare('SELECT id, name FROM organizations WHERE slug = ?').bind(orgSlug).first();
   if (!org) return err('Organization not found', 404);
 
+  // Include event_type and enabled_games_json so computeGameResults works correctly
   const event = await db.prepare(
-    'SELECT id, name, date, holes, status, locked_at, leaderboard_visible FROM events WHERE org_id = ? AND slug = ?'
+    'SELECT id, name, date, holes, status, locked_at, leaderboard_visible, event_type, enabled_games_json FROM events WHERE org_id = ? AND slug = ?'
   ).bind(org.id, eventSlug).first();
   if (!event) return err('Event not found', 404);
 
@@ -94,7 +95,7 @@ export async function onRequestGet(context) {
   const game_results = computeGameResults({ event, teams, scores: allScores, manualPoints });
 
   return json({
-    event: { name: event.name, date: event.date, holes: event.holes, status: event.status, leaderboard_visible: true },
+    event: { name: event.name, date: event.date, holes: event.holes, status: event.status, leaderboard_visible: true, event_type: event.event_type },
     org: { name: org.name },
     totals: { total_par: totalPar },
     teams: leaderboard,
