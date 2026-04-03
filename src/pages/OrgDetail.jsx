@@ -91,6 +91,8 @@ function CreateEventForm({ orgId, courses, onCreated }) {
   const [date, setDate] = useState('');
   const [holes, setHoles] = useState(18);
   const [courseId, setCourseId] = useState('');
+  const [eventType, setEventType] = useState('tournament');
+  const [enabledGames, setEnabledGames] = useState(['stroke_play']);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -104,9 +106,18 @@ function CreateEventForm({ orgId, courses, onCreated }) {
     setSaving(true);
     setError('');
     try {
-      const event = await api.createEvent(orgId, { name, slug, date: date || undefined, holes, course_id: courseId });
+      const event = await api.createEvent(orgId, {
+        name,
+        slug,
+        date: date || undefined,
+        holes,
+        course_id: courseId,
+        event_type: eventType,
+        enabled_games: enabledGames,
+      });
       onCreated(event);
       setName(''); setSlug(''); setDate(''); setHoles(18); setCourseId('');
+      setEventType('tournament'); setEnabledGames(['stroke_play']);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -149,6 +160,40 @@ function CreateEventForm({ orgId, courses, onCreated }) {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label>Event Type</label>
+          <select value={eventType} onChange={(e) => setEventType(e.target.value)}>
+            <option value="tournament">Tournament</option>
+            <option value="weekly_match">Weekly Match</option>
+          </select>
+        </div>
+      </div>
+      <div className="form-group">
+        <label>Games to Track</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+          {[
+            ['stroke_play', 'Stroke Play'],
+            ['match_play', 'Match Play'],
+            ['skins', 'Skins'],
+            ['bingo', 'Bingo'],
+            ['bango', 'Bango'],
+            ['bongo', 'Bongo'],
+          ].map(([key, label]) => (
+            <label key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <input
+                type="checkbox"
+                checked={enabledGames.includes(key)}
+                onChange={(e) => {
+                  if (e.target.checked) setEnabledGames([...enabledGames, key]);
+                  else setEnabledGames(enabledGames.filter((g) => g !== key));
+                }}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
       </div>
       <button className="btn btn-primary" onClick={handleSave} disabled={saving || courses.length === 0}>
         {saving ? 'Creating...' : 'Create Event'}

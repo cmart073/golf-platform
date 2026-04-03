@@ -15,7 +15,7 @@ export async function onRequestGet(context) {
   ).bind(eventId).all();
 
   const { results: teams } = await db.prepare(
-    'SELECT id, team_name, players_json, access_token, starting_hole, locked_at, created_at FROM teams WHERE event_id = ? ORDER BY created_at'
+    'SELECT id, team_name, players_json, access_token, starting_hole, handicap_strokes, locked_at, created_at FROM teams WHERE event_id = ? ORDER BY created_at'
   ).bind(eventId).all();
 
   const { results: sponsors } = await db.prepare(
@@ -42,11 +42,16 @@ export async function onRequestGet(context) {
       }, {}),
   }));
 
+  const { results: gamePoints } = await db.prepare(
+    'SELECT team_id, hole_number, game_type, points FROM game_points WHERE event_id = ? ORDER BY hole_number'
+  ).bind(eventId).all();
+
   return json({
     event,
     org: org ? { slug: org.slug, name: org.name } : null,
     holes: eventHoles,
     teams: teamsWithScores,
     sponsors,
+    game_points: gamePoints,
   });
 }

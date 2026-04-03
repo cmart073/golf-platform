@@ -23,14 +23,18 @@ export const api = {
   getEvents: (orgId) => request(`/api/admin/orgs/${orgId}/events`),
   createEvent: (orgId, body) => request(`/api/admin/orgs/${orgId}/events`, { method: 'POST', body: JSON.stringify(body) }),
   getEvent: (eventId) => request(`/api/admin/events/${eventId}`),
+  getGameResults: (eventId) => request(`/api/admin/events/${eventId}/game-results`),
   updateStatus: (eventId, status) => request(`/api/admin/events/${eventId}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
   setLeaderboardVisibility: (eventId, visible) => request(`/api/admin/events/${eventId}/leaderboard-visibility`, { method: 'POST', body: JSON.stringify({ visible }) }),
+  updateGameSettings: (eventId, body) => request(`/api/admin/events/${eventId}/game-settings`, { method: 'POST', body: JSON.stringify(body) }),
+  setGamePoint: (eventId, body) => request(`/api/admin/events/${eventId}/game-points`, { method: 'POST', body: JSON.stringify(body) }),
 
   // Admin - Teams (God mode)
   addTeam: (eventId, body) => request(`/api/admin/events/${eventId}/teams`, { method: 'POST', body: JSON.stringify(body) }),
   bulkImport: (eventId, rows) => request(`/api/admin/events/${eventId}/teams/bulk`, { method: 'POST', body: JSON.stringify({ rows }) }),
   overrideScore: (eventId, teamId, body) => request(`/api/admin/events/${eventId}/teams/${teamId}/override`, { method: 'POST', body: JSON.stringify(body) }),
   unlockTeam: (eventId, teamId) => request(`/api/admin/events/${eventId}/teams/${teamId}/unlock`, { method: 'POST', body: JSON.stringify({}) }),
+  updateHandicap: (eventId, teamId, handicap_strokes) => request(`/api/admin/events/${eventId}/teams/${teamId}/handicap`, { method: 'POST', body: JSON.stringify({ handicap_strokes }) }),
 
   // Admin - Sponsors
   getSponsors: (eventId) => request(`/api/admin/events/${eventId}/sponsors`),

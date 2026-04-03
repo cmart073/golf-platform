@@ -253,19 +253,35 @@ export default function EventDetail() {
   const [teamName, setTeamName] = useState('');
   const [players, setPlayers] = useState('');
   const [addingTeam, setAddingTeam] = useState(false);
+  const [teamHandicap, setTeamHandicap] = useState(0);
 
   const [bulkText, setBulkText] = useState('');
   const [importing, setImporting] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
 
   const [toast, setToast] = useState('');
+  const [gameResults, setGameResults] = useState({});
+  const [eventType, setEventType] = useState('tournament');
+  const [enabledGames, setEnabledGames] = useState(['stroke_play']);
+  const [gamePointTeam, setGamePointTeam] = useState('');
+  const [gamePointHole, setGamePointHole] = useState(1);
+  const [gamePointType, setGamePointType] = useState('bingo');
+  const [gamePointValue, setGamePointValue] = useState(1);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
   const load = useCallback(async () => {
     try {
-      const d = await api.getEvent(eventId);
+      const [d, g] = await Promise.all([api.getEvent(eventId), api.getGameResults(eventId)]);
       setData(d);
+      setGameResults(g.results || {});
+      setEventType(d.event.event_type || 'tournament');
+      try {
+        const parsed = JSON.parse(d.event.enabled_games_json || '["stroke_play"]');
+        setEnabledGames(Array.isArray(parsed) && parsed.length > 0 ? parsed : ['stroke_play']);
+      } catch {
+        setEnabledGames(['stroke_play']);
+      }
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   }, [eventId]);
@@ -286,8 +302,12 @@ export default function EventDetail() {
     setAddingTeam(true);
     try {
       const playerList = players.split(',').map(p => p.trim()).filter(Boolean);
-      await api.addTeam(eventId, { team_name: teamName.trim(), players: playerList.length > 0 ? playerList : undefined });
-      setTeamName(''); setPlayers('');
+      await api.addTeam(eventId, {
+        team_name: teamName.trim(),
+        players: playerList.length > 0 ? playerList : undefined,
+        handicap_strokes: parseInt(teamHandicap) || 0,
+      });
+      setTeamName(''); setPlayers(''); setTeamHandicap(0);
       showToast('Team added');
       load();
     } catch (e) { showToast('Error: ' + e.message); }
@@ -324,6 +344,36 @@ export default function EventDetail() {
     try {
       await api.setLeaderboardVisibility(eventId, visible);
       showToast(visible ? 'Leaderboard visible' : 'Leaderboard hidden');
+      load();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
+  const saveGameSettings = async () => {
+    try {
+      await api.updateGameSettings(eventId, { event_type: eventType, enabled_games: enabledGames });
+      showToast('Game settings saved');
+      load();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
+  const saveGamePoint = async () => {
+    if (!gamePointTeam) { showToast('Choose a team'); return; }
+    try {
+      await api.setGamePoint(eventId, {
+        team_id: gamePointTeam,
+        hole_number: parseInt(gamePointHole),
+        game_type: gamePointType,
+        points: Number(gamePointValue),
+      });
+      showToast('Side-game points saved');
+      load();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
+  const updateHandicap = async (teamId, handicap) => {
+    try {
+      await api.updateHandicap(eventId, teamId, handicap);
+      showToast('Handicap updated');
       load();
     } catch (e) { showToast('Error: ' + e.message); }
   };
@@ -410,6 +460,100 @@ export default function EventDetail() {
         )}
       </div>
 
+      {/* Weekly Match / Game Settings */}
+      <div className="card god-card" style={{ marginBottom: '1.5rem' }}>
+        <h2>🎮 Weekly Match Games</h2>
+        <div className="form-row">
+          <div className="form-group">
+            <label>Mode</label>
+            <select value={eventType} onChange={(e) => setEventType(e.target.value)}>
+              <option value="tournament">Tournament</option>
+              <option value="weekly_match">Weekly Match</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-group">
+          <label>Enabled Games</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {[
+              ['stroke_play', 'Stroke Play'],
+              ['match_play', 'Match Play'],
+              ['skins', 'Skins'],
+              ['bingo', 'Bingo'],
+              ['bango', 'Bango'],
+              ['bongo', 'Bongo'],
+            ].map(([key, label]) => (
+              <label key={key} style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={enabledGames.includes(key)}
+                  onChange={(e) => {
+                    if (e.target.checked) setEnabledGames([...enabledGames, key]);
+                    else setEnabledGames(enabledGames.filter((g) => g !== key));
+                  }}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={saveGameSettings}>Save Game Settings</button>
+
+        {(enabledGames.includes('bingo') || enabledGames.includes('bango') || enabledGames.includes('bongo')) && (
+          <div style={{ marginTop: '1rem', borderTop: '1px solid var(--slate-200)', paddingTop: '1rem' }}>
+            <h3 style={{ fontSize: '0.95rem' }}>Manual Side-Game Points (Bingo / Bango / Bongo)</h3>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div>
+                <label className="input-label">Team</label>
+                <select value={gamePointTeam} onChange={(e) => setGamePointTeam(e.target.value)}>
+                  <option value="">Select team...</option>
+                  {teams.map((t) => <option key={t.id} value={t.id}>{t.team_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="input-label">Hole</label>
+                <input type="number" min="1" max={event.holes} value={gamePointHole} onChange={(e) => setGamePointHole(e.target.value)} />
+              </div>
+              <div>
+                <label className="input-label">Game</label>
+                <select value={gamePointType} onChange={(e) => setGamePointType(e.target.value)}>
+                  {['bingo', 'bango', 'bongo'].filter((g) => enabledGames.includes(g)).map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="input-label">Points</label>
+                <input type="number" step="0.5" value={gamePointValue} onChange={(e) => setGamePointValue(e.target.value)} />
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={saveGamePoint}>Save Points</button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginTop: '1rem' }}>
+          <h3 style={{ fontSize: '0.95rem' }}>Current Game Standings</h3>
+          {Object.keys(gameResults || {}).length === 0 ? (
+            <div className="empty-state">No game standings yet.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              {Object.entries(gameResults).map(([game, rows]) => (
+                <div key={game} className="card" style={{ padding: '0.75rem' }}>
+                  <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>{game.replace('_', ' ')}</div>
+                  <div style={{ fontSize: '0.9rem' }}>
+                    {rows.slice(0, 5).map((r, idx) => (
+                      <div key={r.team_id}>
+                        {idx + 1}. {r.team_name} — {r.net_strokes ?? r.points ?? r.skins_won}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Hole Pars */}
       <div className="card god-card" style={{ marginBottom: '1.5rem' }}>
         <h2 style={{ fontSize: '1rem' }}>Hole Pars</h2>
@@ -448,6 +592,15 @@ export default function EventDetail() {
           <input placeholder="Players (comma separated)" value={players} onChange={e => setPlayers(e.target.value)}
             className="input" style={{ flex: '2 1 280px' }}
             onKeyDown={e => e.key === 'Enter' && handleAddTeam()} />
+          <input
+            type="number"
+            placeholder="HCP"
+            value={teamHandicap}
+            onChange={(e) => setTeamHandicap(e.target.value)}
+            className="input"
+            style={{ width: 90 }}
+            title="Handicap strokes"
+          />
           <button className="btn btn-primary" onClick={handleAddTeam} disabled={addingTeam || !teamName.trim()}>
             {addingTeam ? 'Adding...' : '+ Add'}
           </button>
@@ -475,7 +628,18 @@ export default function EventDetail() {
         ) : (
           <div className="god-teams-list">
             {teams.map(t => (
-              <TeamScorecard key={t.id} team={t} holes={holes} eventId={eventId} onUpdate={load} showToast={showToast} />
+              <div key={t.id}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.35rem', gap: '0.4rem', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>Handicap</span>
+                  <input
+                    type="number"
+                    defaultValue={t.handicap_strokes || 0}
+                    style={{ width: 70 }}
+                    onBlur={(e) => updateHandicap(t.id, e.target.value)}
+                  />
+                </div>
+                <TeamScorecard team={t} holes={holes} eventId={eventId} onUpdate={load} showToast={showToast} />
+              </div>
             ))}
           </div>
         )}

@@ -1,3 +1,5 @@
+import { computeGameResults } from '../../../../../../_game_scoring.js';
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -38,7 +40,7 @@ export async function onRequestGet(context) {
   }
 
   const { results: teams } = await db.prepare(
-    'SELECT id, team_name, locked_at, created_at FROM teams WHERE event_id = ? ORDER BY created_at'
+    'SELECT id, team_name, locked_at, created_at, handicap_strokes FROM teams WHERE event_id = ? ORDER BY created_at'
   ).bind(event.id).all();
 
   if (teams.length === 0) {
@@ -86,11 +88,17 @@ export async function onRequestGet(context) {
     return a.last_updated < b.last_updated ? -1 : 1;
   });
 
+  const { results: manualPoints } = await db.prepare(
+    'SELECT team_id, hole_number, game_type, points FROM game_points WHERE event_id = ?'
+  ).bind(event.id).all();
+  const game_results = computeGameResults({ event, teams, scores: allScores, manualPoints });
+
   return json({
     event: { name: event.name, date: event.date, holes: event.holes, status: event.status, leaderboard_visible: true },
     org: { name: org.name },
     totals: { total_par: totalPar },
     teams: leaderboard,
+    game_results,
     hidden: false,
   });
 }

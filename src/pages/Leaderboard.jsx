@@ -68,7 +68,7 @@ export default function Leaderboard() {
   if (error) return <div className="page-shell"><div className="card" style={{ color: 'var(--red-500)' }}>{error}</div></div>;
   if (!data) return null;
 
-  const { event, teams, totals, hidden, org } = data;
+  const { event, teams, totals, hidden, org, game_results } = data;
   const isLive = event.status === 'live';
   const isCompleted = event.status === 'completed';
 
@@ -148,6 +148,21 @@ export default function Leaderboard() {
             <div className="lb-footer">
               Last updated {lastFetch.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}
               {isLive && ' · Refreshing every 10s'}
+            </div>
+          )}
+
+          {game_results && Object.keys(game_results).length > 0 && (
+            <div style={{ marginTop: '1rem', display: 'grid', gap: '0.75rem' }}>
+              {Object.entries(game_results).map(([game, rows]) => (
+                <div className="card" key={game} style={{ padding: '0.75rem' }}>
+                  <div style={{ fontWeight: 700, marginBottom: '0.35rem' }}>{game.replace('_', ' ')}</div>
+                  {rows.slice(0, 3).map((r, i) => (
+                    <div key={r.team_id} style={{ fontSize: '0.9rem' }}>
+                      {i + 1}. {r.team_name} — {r.net_strokes ?? r.points ?? r.skins_won}
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
           )}
         </>

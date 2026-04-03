@@ -16,7 +16,7 @@ export async function onRequestPost(context) {
   const db = context.env.DB;
   const orgId = context.params.orgId;
   const body = await context.request.json();
-  const { name, slug, date, holes, course_id, leaderboard_visible } = body;
+  const { name, slug, date, holes, course_id, leaderboard_visible, event_type, enabled_games } = body;
 
   if (!name || !slug) return err('name and slug required');
   if (holes !== 9 && holes !== 18) return err('holes must be 9 or 18');
@@ -35,17 +35,26 @@ export async function onRequestPost(context) {
     return err(`Course only has ${courseHoles.length} holes defined, need ${holes}`);
   }
 
+  const safeEventType = event_type === 'weekly_match' ? 'weekly_match' : 'tournament';
+  const validGames = ['stroke_play', 'match_play', 'skins', 'bingo', 'bango', 'bongo'];
+  const normalizedGames = Array.isArray(enabled_games)
+    ? enabled_games.filter((g) => validGames.includes(g))
+    : ['stroke_play'];
+  const enabledGamesJson = JSON.stringify(normalizedGames.length > 0 ? normalizedGames : ['stroke_play']);
+
   const eventId = newId('evt_');
   const timestamp = now();
 
   await db.prepare(
-    `INSERT INTO events (id, org_id, course_id, slug, name, date, holes, leaderboard_visible, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`
+    `INSERT INTO events (id, org_id, course_id, slug, name, date, holes, leaderboard_visible, status, created_at, event_type, enabled_games_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`
   ).bind(
     eventId, orgId, course_id, slug, name,
     date || null, holes,
     leaderboard_visible !== undefined ? (leaderboard_visible ? 1 : 0) : 1,
-    timestamp
+    timestamp,
+    safeEventType,
+    enabledGamesJson
   ).run();
 
   const stmts = courseHoles.map((ch) =>
