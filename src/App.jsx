@@ -5,6 +5,7 @@ import OrgDetail from './pages/OrgDetail';
 import EventDetail from './pages/EventDetail';
 import QRPack from './pages/QRPack';
 import ScoreEntry from './pages/ScoreEntry';
+import MatchScorer from './pages/MatchScorer';
 import Leaderboard from './pages/Leaderboard';
 import TVMode from './pages/TVMode';
 
@@ -40,8 +41,9 @@ export default function App() {
         <Route path="/admin/event/:eventId" element={<><AdminBar /><EventDetail /></>} />
         <Route path="/admin/event/:eventId/qr-pack" element={<><AdminBar /><QRPack /></>} />
 
-        {/* Public routes — clean public nav, NO admin links */}
+        {/* Public routes — clean public nav */}
         <Route path="/score/:accessToken" element={<><PublicBar /><ScoreEntry /></>} />
+        <Route path="/match/:scorerToken" element={<><PublicBar /><MatchScorer /></>} />
         <Route path="/o/:orgSlug/e/:eventSlug" element={<><PublicBar /><Leaderboard /></>} />
         <Route path="/o/:orgSlug/e/:eventSlug/leaderboard" element={<><PublicBar /><Leaderboard /></>} />
 
@@ -58,4 +60,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-
