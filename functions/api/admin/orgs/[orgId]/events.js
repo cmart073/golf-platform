@@ -1,4 +1,10 @@
 function newId(prefix = '') { return prefix + crypto.randomUUID().replace(/-/g, '').slice(0, 20); }
+function newToken(length = 32) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const arr = new Uint8Array(length);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => chars[b % chars.length]).join('');
+}
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function err(message, status = 400) { return json({ error: message }, status); }
 function now() { return new Date().toISOString(); }
@@ -57,19 +63,23 @@ export async function onRequestPost(context) {
     if (normalized.error) return err(normalized.error);
     const enabledGamesJson = JSON.stringify(normalized.games);
 
+    // Generate scorer token for weekly match events
+    const scorerToken = safeEventType === 'weekly_match' ? newToken(32) : null;
+
     const eventId = newId('evt_');
     const timestamp = now();
 
     await db.prepare(
-      `INSERT INTO events (id, org_id, course_id, slug, name, date, holes, leaderboard_visible, status, created_at, event_type, enabled_games_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`
+      `INSERT INTO events (id, org_id, course_id, slug, name, date, holes, leaderboard_visible, status, created_at, event_type, enabled_games_json, scorer_token)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)`
     ).bind(
       eventId, orgId, course_id, slug, name,
       date || null, holes,
       leaderboard_visible !== undefined ? (leaderboard_visible ? 1 : 0) : 1,
       timestamp,
       safeEventType,
-      enabledGamesJson
+      enabledGamesJson,
+      scorerToken
     ).run();
 
     const stmts = courseHoles.map((ch) =>
@@ -79,7 +89,7 @@ export async function onRequestPost(context) {
     );
     await db.batch(stmts);
 
-    return json({ id: eventId, slug, name, holes, status: 'draft' }, 201);
+    return json({ id: eventId, slug, name, holes, status: 'draft', scorer_token: scorerToken }, 201);
   } catch (e) {
     const msg = String(e?.message || e || '');
     if (msg.includes('UNIQUE constraint failed: events.org_id, events.slug')) {
