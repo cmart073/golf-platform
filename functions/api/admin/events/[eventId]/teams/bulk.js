@@ -33,17 +33,18 @@ export async function onRequestPost(context) {
 
     const team_name = parts[0];
     const players = parts.slice(1);
+    const handicap = 0;
     const id = newId('tm_');
     const access_token = newToken(32);
     const players_json = players.length > 0 ? JSON.stringify(players) : null;
 
     stmts.push(
       db.prepare(
-        'INSERT INTO teams (id, event_id, team_name, players_json, access_token, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind(id, eventId, team_name, players_json, access_token, timestamp)
+        'INSERT INTO teams (id, event_id, team_name, players_json, access_token, handicap_strokes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind(id, eventId, team_name, players_json, access_token, handicap, timestamp)
     );
 
-    created.push({ id, team_name, players, access_token });
+    created.push({ id, team_name, players, access_token, handicap_strokes: handicap });
   }
 
   if (stmts.length > 0) {
