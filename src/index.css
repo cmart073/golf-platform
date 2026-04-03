@@ -363,3 +363,66 @@ td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--slate-100); vertic
 .tv-sponsor-active { opacity: 1; }
 .tv-sponsor img { max-height: 50px; max-width: 300px; object-fit: contain; filter: brightness(0.9); }
 .tv-clock { position: fixed; bottom: 1rem; right: 1.5rem; font-size: 0.85rem; color: #475569; font-variant-numeric: tabular-nums; }
+
+/* ═══════════════════════════════════════════
+   MATCH SCORER
+   ═══════════════════════════════════════════ */
+.ms-page { max-width: 560px; margin: 0 auto; padding: 0 0 4rem; }
+.ms-header { display: flex; justify-content: space-between; align-items: flex-start; background: var(--green-900); color: white; padding: 1rem 1.25rem; gap: 1rem; }
+.ms-event-name { font-family: var(--font-display); font-size: 1.3rem; color: white; }
+.ms-event-meta { display: flex; gap: 0.75rem; font-size: 0.75rem; color: var(--green-300); flex-wrap: wrap; margin-top: 0.25rem; align-items: center; }
+.ms-standings-toggle { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: var(--radius-sm); padding: 0.4rem 0.75rem; font-size: 0.8rem; cursor: pointer; white-space: nowrap; font-family: var(--font-body); }
+.ms-standings-toggle.active { background: var(--green-600); }
+
+.ms-standings { background: white; border-bottom: 2px solid var(--slate-200); padding: 1rem 1.25rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+.ms-standing-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--green-800); margin-bottom: 0.4rem; }
+.ms-standing-row { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0; font-size: 0.875rem; }
+.ms-standing-pos { font-size: 0.7rem; color: var(--slate-400); width: 14px; }
+.ms-standing-name { flex: 1; }
+.ms-standing-val { font-weight: 700; }
+.ms-standing-val.under { color: var(--green-600); }
+.ms-standing-val.over { color: var(--red-500); }
+.ms-standing-val.even { color: var(--slate-500); }
+
+.ms-score-card { margin: 1rem; background: white; border: 1px solid var(--slate-200); border-radius: var(--radius-lg); padding: 1.25rem; }
+.ms-hole-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem; }
+.ms-hole-label { font-family: var(--font-display); font-size: 1.4rem; color: var(--green-900); }
+.ms-par-label { font-size: 0.85rem; color: var(--slate-500); }
+.ms-score-grid { display: flex; flex-direction: column; gap: 0.75rem; }
+.ms-score-row { display: flex; align-items: center; gap: 0.75rem; }
+.ms-player-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
+.ms-hcp-badge { font-size: 0.65rem; background: var(--blue-100); color: var(--blue-500); padding: 0.1rem 0.4rem; border-radius: 999px; white-space: nowrap; }
+.ms-input-wrap { display: flex; align-items: center; gap: 0.5rem; }
+.ms-score-input { width: 72px; height: 52px; font-size: 1.6rem; text-align: center; font-family: var(--font-body); font-weight: 700; border: 2px solid var(--slate-300); border-radius: var(--radius-md); color: var(--green-900); }
+.ms-score-input:focus { outline: none; border-color: var(--green-500); box-shadow: 0 0 0 3px rgba(34,197,94,0.15); }
+.ms-score-readonly { font-size: 1.6rem; font-weight: 700; color: var(--green-900); width: 72px; text-align: center; display: inline-block; }
+.ms-score-diff { font-size: 0.9rem; font-weight: 700; min-width: 28px; }
+.ms-score-diff.under { color: var(--green-600); }
+.ms-score-diff.over { color: var(--red-500); }
+.ms-score-diff.even { color: var(--slate-400); }
+
+.ms-bbb-card { margin: 0 1rem 1rem; background: white; border: 1px solid var(--slate-200); border-radius: var(--radius-lg); padding: 1rem 1.25rem; }
+.ms-bbb-header { font-weight: 700; color: var(--green-800); font-size: 0.9rem; margin-bottom: 0.75rem; }
+.ms-bbb-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem; }
+.ms-bbb-label { font-size: 0.8rem; font-weight: 600; width: 80px; flex-shrink: 0; }
+.ms-bbb-buttons { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.ms-bbb-btn { padding: 0.3rem 0.65rem; font-size: 0.8rem; font-family: var(--font-body); border: 2px solid var(--slate-200); border-radius: 999px; background: white; cursor: pointer; transition: all 0.15s; color: var(--slate-700); }
+.ms-bbb-btn:hover:not(:disabled) { border-color: var(--green-400); }
+.ms-bbb-btn.ms-bbb-active { background: var(--green-700); border-color: var(--green-700); color: white; font-weight: 600; }
+.ms-bbb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ms-summary-card { margin: 0 1rem 1rem; background: white; border: 1px solid var(--slate-200); border-radius: var(--radius-lg); overflow: hidden; }
+.ms-summary-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--slate-500); padding: 0.75rem 1rem 0.4rem; }
+.ms-scorecard-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.ms-scorecard-table th, .ms-scorecard-table td { padding: 0.4rem 0.3rem; text-align: center; border: 1px solid var(--slate-100); min-width: 28px; }
+.ms-scorecard-table th { background: var(--slate-50); font-size: 0.65rem; font-weight: 700; color: var(--slate-500); cursor: pointer; }
+.ms-sc-par-row td { font-size: 0.7rem; color: var(--slate-400); background: var(--green-50); }
+.ms-sc-player { font-weight: 600; text-align: left !important; padding-left: 0.75rem !important; white-space: nowrap; }
+.ms-sc-total { font-weight: 700; background: var(--slate-50); }
+.ms-sc-cell { cursor: pointer; font-weight: 600; }
+.ms-sc-cell.birdie { background: rgba(34,197,94,0.1); }
+.ms-sc-cell.bogey { background: rgba(239,68,68,0.07); }
+.ms-sc-active-hole { background: var(--sand-100) !important; }
+
+/* Scorer link in admin */
+.god-scorer-link { background: var(--sand-50); border: 1px solid var(--sand-200); border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-top: 0.75rem; }
