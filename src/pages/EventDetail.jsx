@@ -9,10 +9,15 @@ function StatusBadge({ status }) {
 
 function gameLabel(key) {
   const labels = {
-    stroke_play: 'Stroke Play',
-    match_play: 'Match Play',
-    skins: 'Skins',
-    bingo_bango_bongo: 'Bingo Bango Bongo',
+    stroke_play: '⛳ Stroke Play',
+    match_play: '🥊 Match Play',
+    skins: '🏆 Skins',
+    bingo_bango_bongo: '🎲 Bingo Bango Bongo',
+    nassau: '💰 Nassau',
+    wolf: '🐺 Wolf',
+    nine_points: '🎯 9 Points',
+    match_play_presses: '🥊 Match Play (Presses)',
+    skins_presses: '🏆 Skins (Presses)',
   };
   return labels[key] ?? key.replaceAll('_', ' ');
 }
@@ -23,7 +28,7 @@ function gameStat(game, row) {
     if (net === 0) return 'E';
     return net > 0 ? `+${net}` : `${net}`;
   }
-  if (game === 'match_play') return `${row.points} pts`;
+  if (game === 'match_play' || game === 'nine_points') return `${row.points} pts`;
   if (game === 'skins') return `${row.skins_won} skin${row.skins_won !== 1 ? 's' : ''}`;
   if (game === 'bingo_bango_bongo') return `${row.points} pts`;
   return row.net_strokes ?? row.points ?? row.skins_won;
@@ -569,10 +574,13 @@ export default function EventDetail() {
           <label>Enabled Games</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {[
-              ['stroke_play', 'Stroke Play'],
-              ['match_play', 'Match Play'],
-              ['skins', 'Skins'],
-              ['bingo_bango_bongo', 'Bingo Bango Bongo'],
+              ['stroke_play', '⛳ Stroke Play'],
+              ['match_play', '🥊 Match Play'],
+              ['nassau', '💰 Nassau'],
+              ['skins', '🏆 Skins'],
+              ['wolf', '🐺 Wolf'],
+              ['nine_points', '🎯 9 Points (Nines)'],
+              ['bingo_bango_bongo', '🎲 Bingo Bango Bongo'],
             ].map(([key, label]) => (
               <label key={key} style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
                 <input
@@ -625,20 +633,85 @@ export default function EventDetail() {
             <div className="empty-state">No game standings yet.</div>
           ) : (
             <div style={{ display: 'grid', gap: '0.75rem' }}>
-              {Object.entries(gameResults).map(([game, rows]) => (
-                <div key={game} className="card" style={{ padding: '0.75rem' }}>
-                  <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>
-                    {gameLabel(game)}
-                  </div>
-                  <div style={{ fontSize: '0.9rem' }}>
-                    {rows.slice(0, 5).map((r, idx) => (
-                      <div key={r.team_id}>
-                        {idx + 1}. {r.team_name} — {gameStat(game, r)}
+              {Object.entries(gameResults).map(([game, data]) => {
+                // Nassau has sub-results (front, back, overall, presses)
+                if (game === 'nassau' && data && typeof data === 'object' && !Array.isArray(data)) {
+                  return (
+                    <div key={game} className="card" style={{ padding: '0.75rem' }}>
+                      <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>💰 Nassau</div>
+                      {['front', 'back', 'overall'].map(seg => data[seg] && (
+                        <div key={seg} style={{ marginBottom: '0.5rem' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--slate-500)', textTransform: 'uppercase' }}>
+                            {seg === 'front' ? 'Front 9' : seg === 'back' ? 'Back 9' : 'Overall'}
+                          </div>
+                          <div style={{ fontSize: '0.9rem' }}>
+                            {data[seg].slice(0, 5).map((r, i) => (
+                              <div key={r.team_id}>{i + 1}. {r.team_name} — {r.points} pts</div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {data.presses && data.presses.length > 0 && (
+                        <div style={{ borderTop: '1px solid var(--slate-200)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--red-500)' }}>🔥 PRESSES</div>
+                          {data.presses.map((p, i) => (
+                            <div key={i} style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                              {p.pressed_by_name} pressed {p.game_type.replace('nassau_', '')} from hole {p.from_hole}
+                              {p.results && <span> — Leader: {p.results[0]?.team_name} ({p.results[0]?.points} pts)</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                // Wolf has standings and picks
+                if (game === 'wolf' && data && data.standings) {
+                  return (
+                    <div key={game} className="card" style={{ padding: '0.75rem' }}>
+                      <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>🐺 Wolf</div>
+                      <div style={{ fontSize: '0.9rem' }}>
+                        {data.standings.slice(0, 5).map((r, i) => (
+                          <div key={r.team_id}>{i + 1}. {r.team_name} — {r.points > 0 ? '+' : ''}{r.points} pts</div>
+                        ))}
                       </div>
-                    ))}
+                      {data.picks && data.picks.length > 0 && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--slate-500)', marginTop: '0.5rem' }}>
+                          {data.picks.map(p => (
+                            <div key={p.hole_number}>Hole {p.hole_number}: {p.wolf_name} → {p.partner_name}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                // Press sub-results
+                if (game.endsWith('_presses') && Array.isArray(data)) {
+                  return (
+                    <div key={game} className="card" style={{ padding: '0.75rem', borderLeft: '3px solid var(--red-400, #f87171)' }}>
+                      <div style={{ fontWeight: 700, marginBottom: '0.5rem', color: 'var(--red-500)' }}>🔥 {gameLabel(game)}</div>
+                      {data.map((p, i) => (
+                        <div key={i} style={{ fontSize: '0.85rem', marginBottom: '0.35rem' }}>
+                          {p.pressed_by_name} pressed from hole {p.from_hole}: {p.results[0]?.team_name} leads ({p.results[0]?.points} pts)
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                // Standard array results
+                const rows = Array.isArray(data) ? data : [];
+                if (rows.length === 0) return null;
+                return (
+                  <div key={game} className="card" style={{ padding: '0.75rem' }}>
+                    <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>{gameLabel(game)}</div>
+                    <div style={{ fontSize: '0.9rem' }}>
+                      {rows.slice(0, 5).map((r, idx) => (
+                        <div key={r.team_id}>{idx + 1}. {r.team_name} — {gameStat(game, r)}</div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

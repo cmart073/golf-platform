@@ -3,7 +3,7 @@ function json(data, status = 200) { return new Response(JSON.stringify(data), { 
 function err(message, status = 400) { return json({ error: message }, status); }
 function now() { return new Date().toISOString(); }
 
-const ALLOWED = ['bingo', 'bango', 'bongo'];
+const ALLOWED = ['bingo', 'bango', 'bongo', 'nassau_front', 'nassau_back', 'nassau_overall', 'wolf', 'nine_points'];
 
 export async function onRequestPost(context) {
   const db = context.env.DB;

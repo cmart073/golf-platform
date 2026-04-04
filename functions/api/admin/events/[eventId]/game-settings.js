@@ -7,7 +7,7 @@ function newToken(length = 32) {
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function err(message, status = 400) { return json({ error: message }, status); }
 
-const VALID_GAMES = ['stroke_play', 'match_play', 'skins', 'bingo', 'bango', 'bongo'];
+const VALID_GAMES = ['stroke_play', 'match_play', 'skins', 'bingo', 'bango', 'bongo', 'nassau', 'wolf', 'nine_points'];
 function normalizeGames(inputGames) {
   const raw = Array.isArray(inputGames) ? inputGames.filter((g) => VALID_GAMES.includes(g)) : ['stroke_play'];
   if (raw.includes('stroke_play') && raw.includes('match_play')) {

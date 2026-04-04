@@ -201,10 +201,13 @@ function CreateEventForm({ orgId, courses, onCreated }) {
         <label>Games to Track</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
           {[
-            ['stroke_play', 'Stroke Play'],
-            ['match_play', 'Match Play'],
-            ['skins', 'Skins'],
-            ['bingo_bango_bongo', 'Bingo Bango Bongo'],
+            ['stroke_play', '⛳ Stroke Play'],
+            ['match_play', '🥊 Match Play'],
+            ['nassau', '💰 Nassau'],
+            ['skins', '🏆 Skins'],
+            ['wolf', '🐺 Wolf'],
+            ['nine_points', '🎯 9 Points (Nines)'],
+            ['bingo_bango_bongo', '🎲 Bingo Bango Bongo'],
           ].map(([key, label]) => (
             <label key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               <input

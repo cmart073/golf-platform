@@ -63,6 +63,12 @@ export const api = {
   getMatchContext: (scorerToken) => request(`/api/score/match/${scorerToken}/context`),
   submitMatchHole: (scorerToken, body) => request(`/api/score/match/${scorerToken}/hole`, { method: 'POST', body: JSON.stringify(body) }),
   submitMatchBBB: (scorerToken, body) => request(`/api/score/match/${scorerToken}/bbb`, { method: 'POST', body: JSON.stringify(body) }),
+  submitMatchWolf: (scorerToken, body) => request(`/api/score/match/${scorerToken}/wolf`, { method: 'POST', body: JSON.stringify(body) }),
+  submitMatchPress: (scorerToken, body) => request(`/api/score/match/${scorerToken}/press`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // Admin - Bets (presses, multipliers, values)
+  getBets: (eventId) => request(`/api/admin/events/${eventId}/bets`),
+  manageBet: (eventId, body) => request(`/api/admin/events/${eventId}/bets`, { method: 'POST', body: JSON.stringify(body) }),
 
   // Public - Leaderboard
   getLeaderboard: (orgSlug, eventSlug) => request(`/api/public/org/${orgSlug}/event/${eventSlug}/leaderboard`),

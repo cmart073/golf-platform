@@ -67,6 +67,31 @@ export async function onRequestGet(context) {
 
   const enabledGames = safeJsonArray(event.enabled_games_json, ['stroke_play']);
 
+  // Wolf picks
+  let wolfPicks = [];
+  try {
+    const { results } = await db.prepare(
+      'SELECT hole_number, wolf_team_id, partner_team_id FROM wolf_picks WHERE event_id = ? ORDER BY hole_number'
+    ).bind(event.id).all();
+    wolfPicks = results || [];
+  } catch { /* table may not exist yet */ }
+
+  // Presses
+  let presses = [];
+  try {
+    const { results } = await db.prepare(
+      "SELECT id, team_id, game_type, hole_number, value, created_at FROM event_bets WHERE event_id = ? AND bet_type = 'press' ORDER BY created_at"
+    ).bind(event.id).all();
+    presses = results || [];
+  } catch { /* table may not exist yet */ }
+
+  // Bet config
+  let betConfig = {};
+  try {
+    const ev = await db.prepare('SELECT bet_config_json FROM events WHERE id = ?').bind(event.id).first();
+    betConfig = JSON.parse(ev?.bet_config_json || '{}');
+  } catch {}
+
   return json({
     event: {
       id: event.id,
@@ -87,5 +112,8 @@ export async function onRequestGet(context) {
       scores: scoreMaps[t.id],
     })),
     bbb,
+    wolf_picks: wolfPicks,
+    presses,
+    bet_config: betConfig,
   });
 }

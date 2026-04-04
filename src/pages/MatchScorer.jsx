@@ -104,12 +104,85 @@ function Standings({ teams, holes, enabledGames, bbbByHole }) {
 
   const hasBBB = enabledGames.includes('bingo') && enabledGames.includes('bango') && enabledGames.includes('bongo');
   const hasStroke = enabledGames.includes('stroke_play');
+  const hasNassau = enabledGames.includes('nassau');
+  const hasNinePoints = enabledGames.includes('nine_points');
+
+  // Nassau — compute front/back/overall inline (same logic as match play but segmented)
+  let nassauFront = null, nassauBack = null, nassauOverall = null;
+  if (hasNassau) {
+    const minHcp = Math.min(...teams.map(t => toNum(t.handicap_strokes)));
+    const front9End = Math.min(9, holeCount);
+    const computeRange = (start, end) => {
+      const pts = {};
+      teams.forEach(t => { pts[t.id] = 0; });
+      for (let h = start; h <= end; h++) {
+        const hs = teams.map(t => {
+          const s = t.scores[h];
+          if (s == null) return null;
+          const relHcp = toNum(t.handicap_strokes) - minHcp;
+          return { team_id: t.id, team_name: t.team_name, net: s - relHcp / holeCount };
+        }).filter(Boolean);
+        if (hs.length < 2) continue;
+        const best = Math.min(...hs.map(x => x.net));
+        const winners = hs.filter(x => x.net === best);
+        winners.forEach(w => { pts[w.team_id] += 1 / winners.length; });
+      }
+      return teams.map(t => ({ team_id: t.id, team_name: t.team_name, points: +pts[t.id].toFixed(2) }))
+        .sort((a, b) => b.points - a.points);
+    };
+    nassauFront = computeRange(1, front9End);
+    if (holeCount > 9) nassauBack = computeRange(10, holeCount);
+    nassauOverall = computeRange(1, holeCount);
+  }
+
+  // Nine Points
+  let ninePointsResults = null;
+  if (hasNinePoints) {
+    const minHcp = Math.min(...teams.map(t => toNum(t.handicap_strokes)));
+    const pts = {};
+    teams.forEach(t => { pts[t.id] = 0; });
+    for (let h = 1; h <= holeCount; h++) {
+      const hs = teams.map(t => {
+        const s = t.scores[h];
+        if (s == null) return null;
+        return { team_id: t.id, net: s - (toNum(t.handicap_strokes) - minHcp) / holeCount };
+      }).filter(Boolean);
+      if (hs.length < 2) continue;
+      hs.sort((a, b) => a.net - b.net);
+      if (hs.length === 2) { pts[hs[0].team_id] += 6; pts[hs[1].team_id] += 3; }
+      else if (hs.length === 3) {
+        const allSame = hs[0].net === hs[2].net;
+        if (allSame) hs.forEach(x => { pts[x.team_id] += 3; });
+        else if (hs[0].net === hs[1].net) { hs.slice(0,2).forEach(x => { pts[x.team_id] += 4; }); pts[hs[2].team_id] += 1; }
+        else if (hs[1].net === hs[2].net) { pts[hs[0].team_id] += 5; hs.slice(1).forEach(x => { pts[x.team_id] += 2; }); }
+        else { pts[hs[0].team_id] += 5; pts[hs[1].team_id] += 3; pts[hs[2].team_id] += 1; }
+      } else {
+        const share = 9 / hs.length;
+        hs.forEach(x => { pts[x.team_id] += share; });
+      }
+    }
+    ninePointsResults = teams.map(t => ({ team_id: t.id, team_name: t.team_name, points: +pts[t.id].toFixed(1) }))
+      .sort((a, b) => b.points - a.points);
+  }
+
+  const StandingBlock = ({ title, rows, valKey = 'points', suffix = 'pts' }) => (
+    <div className="ms-standing-block">
+      <div className="ms-standing-title">{title}</div>
+      {rows.map((r, i) => (
+        <div key={r.team_id} className="ms-standing-row">
+          <span className="ms-standing-pos">{i + 1}</span>
+          <span className="ms-standing-name">{r.team_name}</span>
+          <span className="ms-standing-val even">{r[valKey]} {suffix}</span>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="ms-standings">
       {hasStroke && (
         <div className="ms-standing-block">
-          <div className="ms-standing-title">Stroke Play</div>
+          <div className="ms-standing-title">⛳ Stroke Play</div>
           {strokePlay.map((r, i) => (
             <div key={r.team_id} className="ms-standing-row">
               <span className="ms-standing-pos">{i + 1}</span>
@@ -122,10 +195,34 @@ function Standings({ teams, holes, enabledGames, bbbByHole }) {
         </div>
       )}
 
-      {matchPlay && (
+      {matchPlay && <StandingBlock title="🥊 Match Play" rows={matchPlay} />}
+      {skins && <StandingBlock title="🏆 Skins" rows={skins} valKey="skins" suffix="🏆" />}
+
+      {hasNassau && nassauFront && (
         <div className="ms-standing-block">
-          <div className="ms-standing-title">Match Play</div>
-          {matchPlay.map((r, i) => (
+          <div className="ms-standing-title">💰 Nassau</div>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-400)', marginBottom: '0.25rem' }}>FRONT 9</div>
+          {nassauFront.map((r, i) => (
+            <div key={r.team_id} className="ms-standing-row">
+              <span className="ms-standing-pos">{i + 1}</span>
+              <span className="ms-standing-name">{r.team_name}</span>
+              <span className="ms-standing-val even">{r.points} pts</span>
+            </div>
+          ))}
+          {nassauBack && (
+            <>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-400)', margin: '0.5rem 0 0.25rem' }}>BACK 9</div>
+              {nassauBack.map((r, i) => (
+                <div key={r.team_id} className="ms-standing-row">
+                  <span className="ms-standing-pos">{i + 1}</span>
+                  <span className="ms-standing-name">{r.team_name}</span>
+                  <span className="ms-standing-val even">{r.points} pts</span>
+                </div>
+              ))}
+            </>
+          )}
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-400)', margin: '0.5rem 0 0.25rem' }}>OVERALL</div>
+          {nassauOverall.map((r, i) => (
             <div key={r.team_id} className="ms-standing-row">
               <span className="ms-standing-pos">{i + 1}</span>
               <span className="ms-standing-name">{r.team_name}</span>
@@ -135,31 +232,9 @@ function Standings({ teams, holes, enabledGames, bbbByHole }) {
         </div>
       )}
 
-      {skins && (
-        <div className="ms-standing-block">
-          <div className="ms-standing-title">Skins</div>
-          {skins.map((r, i) => (
-            <div key={r.team_id} className="ms-standing-row">
-              <span className="ms-standing-pos">{i + 1}</span>
-              <span className="ms-standing-name">{r.team_name}</span>
-              <span className="ms-standing-val even">{r.skins} 🏆</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {ninePointsResults && <StandingBlock title="🎯 9 Points" rows={ninePointsResults} />}
 
-      {hasBBB && (
-        <div className="ms-standing-block">
-          <div className="ms-standing-title">Bingo Bango Bongo</div>
-          {bbbRows.map((r, i) => (
-            <div key={r.team_id} className="ms-standing-row">
-              <span className="ms-standing-pos">{i + 1}</span>
-              <span className="ms-standing-name">{r.team_name}</span>
-              <span className="ms-standing-val even">{r.points} pts</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {hasBBB && <StandingBlock title="🎲 Bingo Bango Bongo" rows={bbbRows} />}
     </div>
   );
 }
@@ -235,13 +310,47 @@ export default function MatchScorer() {
   );
   if (!ctx) return null;
 
-  const { event, holes, teams, bbb: bbbByHole } = ctx;
+  const { event, holes, teams, bbb: bbbByHole, wolf_picks: wolfPicks = [], presses = [], bet_config: betConfig = {} } = ctx;
   const enabledGames = event.enabled_games || ['stroke_play'];
   const hasBBB = enabledGames.includes('bingo') && enabledGames.includes('bango') && enabledGames.includes('bongo');
+  const hasWolf = enabledGames.includes('wolf');
+  const hasNassau = enabledGames.includes('nassau');
   const isLocked = !!event.locked_at || event.status === 'completed';
   const isNotLive = event.status !== 'live' && event.status !== 'completed';
   const currentHolePar = holes.find(h => h.hole_number === selectedHole)?.par ?? 4;
   const currentBBB = bbbByHole[selectedHole] || {};
+
+  // Wolf state
+  const wolfPickMap = {};
+  wolfPicks.forEach(wp => { wolfPickMap[wp.hole_number] = wp; });
+  const currentWolf = wolfPickMap[selectedHole];
+  const wolfOrder = teams.length > 0 ? teams[(selectedHole - 1) % teams.length] : null;
+
+  const handleWolfPick = async (partnerId) => {
+    try {
+      await api.submitMatchWolf(scorerToken, {
+        hole_number: selectedHole,
+        wolf_team_id: wolfOrder.id,
+        partner_team_id: partnerId,
+      });
+      showToast(partnerId ? `Wolf picked partner` : `🐺 LONE WOLF!`);
+      await load();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
+  // Press handler
+  const handlePress = async (gameType) => {
+    const pressTeam = teams[0]; // first team presses by default — could be expanded
+    try {
+      await api.submitMatchPress(scorerToken, {
+        team_id: pressTeam.id,
+        game_type: gameType,
+        hole_number: selectedHole,
+      });
+      showToast(`🔥 PRESS on ${gameType.replace('_', ' ')}!`);
+      await load();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
 
   // Count holes with all scores entered
   const holesComplete = holes.filter(h =>
@@ -450,6 +559,94 @@ export default function MatchScorer() {
             currentTeamId={currentBBB.bongo || null}
             onAssign={handleBBBAssign} disabled={bbbSaving}
           />
+        </div>
+      )}
+
+      {/* Wolf Picker */}
+      {hasWolf && !isLocked && !isNotLive && (
+        <div className="ms-bbb-card" style={{ borderLeft: '3px solid #f59e0b' }}>
+          <div className="ms-bbb-header">🐺 Hole {selectedHole} · Wolf</div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--slate-500)', marginBottom: '0.75rem' }}>
+            Wolf: <strong>{wolfOrder?.team_name || '—'}</strong>
+            {currentWolf && (
+              <span> → {currentWolf.partner_team_id
+                ? teams.find(t => t.id === currentWolf.partner_team_id)?.team_name || '?'
+                : '🐺 LONE WOLF'
+              }</span>
+            )}
+          </div>
+          {wolfOrder && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {teams.filter(t => t.id !== wolfOrder.id).map(t => (
+                <button
+                  key={t.id}
+                  className={`ms-bbb-btn ${currentWolf?.partner_team_id === t.id ? 'ms-bbb-active' : ''}`}
+                  onClick={() => handleWolfPick(t.id)}
+                >
+                  {t.team_name}
+                </button>
+              ))}
+              <button
+                className={`ms-bbb-btn ${currentWolf && !currentWolf.partner_team_id ? 'ms-bbb-active' : ''}`}
+                style={{ background: currentWolf && !currentWolf.partner_team_id ? '#f59e0b' : undefined,
+                         color: currentWolf && !currentWolf.partner_team_id ? 'white' : undefined,
+                         fontWeight: 700 }}
+                onClick={() => handleWolfPick(null)}
+              >
+                🐺 LONE WOLF
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Press Buttons */}
+      {!isLocked && !isNotLive && (hasNassau || enabledGames.includes('match_play') || enabledGames.includes('skins')) && (
+        <div className="ms-bbb-card" style={{ borderLeft: '3px solid #ef4444' }}>
+          <div className="ms-bbb-header">🔥 Press</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--slate-500)', marginBottom: '0.75rem' }}>
+            Double down from hole {selectedHole} forward. No take-backs.
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {hasNassau && (
+              <>
+                <button className="btn btn-sm" style={{ background: '#dc2626', color: 'white', border: 'none' }}
+                  onClick={() => handlePress('nassau_front')}>
+                  Press Front 9
+                </button>
+                {holes.length > 9 && (
+                  <button className="btn btn-sm" style={{ background: '#dc2626', color: 'white', border: 'none' }}
+                    onClick={() => handlePress('nassau_back')}>
+                    Press Back 9
+                  </button>
+                )}
+                <button className="btn btn-sm" style={{ background: '#dc2626', color: 'white', border: 'none' }}
+                  onClick={() => handlePress('nassau_overall')}>
+                  Press Overall
+                </button>
+              </>
+            )}
+            {enabledGames.includes('match_play') && (
+              <button className="btn btn-sm" style={{ background: '#dc2626', color: 'white', border: 'none' }}
+                onClick={() => handlePress('match_play')}>
+                Press Match Play
+              </button>
+            )}
+            {enabledGames.includes('skins') && (
+              <button className="btn btn-sm" style={{ background: '#dc2626', color: 'white', border: 'none' }}
+                onClick={() => handlePress('skins')}>
+                Press Skins
+              </button>
+            )}
+          </div>
+          {presses.length > 0 && (
+            <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--slate-500)' }}>
+              <strong>Active presses:</strong>
+              {presses.map((p, i) => (
+                <div key={i}>🔥 {teams.find(t => t.id === p.team_id)?.team_name || '?'} pressed {p.game_type.replace(/_/g, ' ')} from hole {p.hole_number}</div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
