@@ -8,6 +8,7 @@ import ScoreEntry from './pages/ScoreEntry';
 import MatchScorer from './pages/MatchScorer';
 import Leaderboard from './pages/Leaderboard';
 import TVMode from './pages/TVMode';
+import Landing from './pages/Landing';
 
 function PublicBar() {
   return (
@@ -32,6 +33,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Marketing landing page — no shared chrome */}
+        <Route path="/" element={<Landing />} />
+
         {/* TV mode — no chrome at all */}
         <Route path="/o/:orgSlug/e/:eventSlug/tv" element={<TVMode />} />
 
@@ -47,15 +51,8 @@ export default function App() {
         <Route path="/o/:orgSlug/e/:eventSlug" element={<><PublicBar /><Leaderboard /></>} />
         <Route path="/o/:orgSlug/e/:eventSlug/leaderboard" element={<><PublicBar /><Leaderboard /></>} />
 
-        {/* Fallback */}
-        <Route path="*" element={
-          <><PublicBar />
-            <div className="page-shell" style={{ textAlign: 'center', paddingTop: '4rem' }}>
-              <img src="/logo.svg" alt="FairwaysLive" style={{ height: '64px', marginBottom: '1rem' }} />
-              <p style={{ marginTop: '0.75rem', color: 'var(--slate-500)' }}>Live golf event scoring platform.</p>
-            </div>
-          </>
-        } />
+        {/* Fallback → landing */}
+        <Route path="*" element={<Landing />} />
       </Routes>
     </BrowserRouter>
   );
