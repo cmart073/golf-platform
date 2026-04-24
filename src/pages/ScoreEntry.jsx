@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
 
@@ -38,10 +38,35 @@ export default function ScoreEntry() {
 
   useEffect(() => { load(); }, [load]);
 
+  const strokesInputRef = useRef(null);
+
   useEffect(() => {
     if (!ctx) return;
     const existing = ctx.scores[selectedHole];
     setStrokes(existing ? String(existing.strokes) : '');
+  }, [selectedHole, ctx]);
+
+  // Scroll to top whenever the selected hole changes — applies to auto-advance,
+  // the "Next unfilled hole" button, and manual hole-chip taps.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [selectedHole]);
+
+  // Focus the stroke input only when the hole has no score yet. If a score
+  // already exists, keep the keyboard dismissed — the scorer is reviewing,
+  // not entering.
+  useEffect(() => {
+    if (!ctx) return;
+    const hasScore = !!ctx.scores[selectedHole];
+    const el = strokesInputRef.current;
+    if (!el) return;
+    if (hasScore) {
+      // Dismiss any open mobile keyboard.
+      el.blur();
+    } else {
+      // Empty hole — pop the keyboard for quick entry.
+      el.focus();
+    }
   }, [selectedHole, ctx]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
@@ -54,6 +79,11 @@ export default function ScoreEntry() {
       const result = await api.submitScore(accessToken, { hole_number: selectedHole, strokes: s });
       setCtx(prev => ({ ...prev, scores: result.scores }));
       showToast('Saved ✓');
+
+      // Dismiss mobile keyboard — user just saved, they're not typing anymore.
+      // (If the hole changes below via auto-advance, the focus effect will
+      // re-focus on the new empty hole.)
+      if (strokesInputRef.current) strokesInputRef.current.blur();
 
       // If Jeff Martin is on, don't auto-advance — let the scorer pick the your-hole player first.
       if (jmEnabled) return;
@@ -281,9 +311,10 @@ export default function ScoreEntry() {
             ) : (
               <>
                 <input type="number" min="1" max="20" value={strokes}
+                  ref={strokesInputRef}
                   onChange={e => setStrokes(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSave()}
-                  placeholder="—" autoFocus />
+                  placeholder="—" />
                 <div className="save-row">
                   <button className="btn btn-primary" onClick={handleSave} disabled={saving || !strokes}>
                     {saving ? 'Saving...' : scores[selectedHole] ? 'Update' : 'Save'}
