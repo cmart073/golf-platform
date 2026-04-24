@@ -16,6 +16,7 @@ function gameLabel(key) {
     nassau: '💰 Nassau',
     wolf: '🐺 Wolf',
     nine_points: '🎯 9 Points',
+    jeff_martin: '🎖️ Jeff Martin',
     match_play_presses: '🥊 Match Play (Presses)',
     skins_presses: '🏆 Skins (Presses)',
   };
@@ -28,7 +29,7 @@ function gameStat(game, row) {
     if (net === 0) return 'E';
     return net > 0 ? `+${net}` : `${net}`;
   }
-  if (game === 'match_play' || game === 'nine_points') return `${row.points} pts`;
+  if (game === 'match_play' || game === 'nine_points' || game === 'jeff_martin') return `${row.points} pts`;
   if (game === 'skins') return `${row.skins_won} skin${row.skins_won !== 1 ? 's' : ''}`;
   if (game === 'bingo_bango_bongo') return `${row.points} pts`;
   return row.net_strokes ?? row.points ?? row.skins_won;
@@ -291,6 +292,135 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Jeff Martin admin panel (god mode) ── */
+function JeffMartinAdminPanel({ eventId, holes, showToast }) {
+  const [state, setState] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api.getJeffMartin(eventId);
+      setState(d);
+    } catch (e) { showToast('Error loading Jeff Martin: ' + e.message); }
+    finally { setLoading(false); }
+  }, [eventId, showToast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const setYourHole = async (teamId, holeNum, playerIndex) => {
+    setBusy(true);
+    try {
+      await api.setAdminYourHole(eventId, { team_id: teamId, hole_number: holeNum, player_index: playerIndex });
+      await load();
+    } catch (e) { showToast('Error: ' + e.message); }
+    finally { setBusy(false); }
+  };
+
+  const setMulligan = async (teamId, playerIndex, used_count, holes_used) => {
+    setBusy(true);
+    try {
+      await api.setAdminMulligan(eventId, { team_id: teamId, player_index: playerIndex, used_count, holes_used });
+      await load();
+    } catch (e) { showToast('Error: ' + e.message); }
+    finally { setBusy(false); }
+  };
+
+  if (loading) return <div className="card god-card" style={{ marginBottom: '1.5rem' }}>Loading Jeff Martin state…</div>;
+  if (!state) return null;
+
+  const { teams, your_holes, mulligans } = state;
+  const holeCount = (holes && holes.length) || state.event.holes || 18;
+
+  return (
+    <div className="card god-card" style={{ marginBottom: '1.5rem' }}>
+      <h2>🎖️ Jeff Martin — Admin Override</h2>
+      <p style={{ fontSize: '0.85rem', color: 'var(--slate-500)', marginTop: '-0.25rem', marginBottom: '1rem' }}>
+        Set "your hole" ownership and adjust mulligan counts for any team. Changes bypass team/event locks.
+      </p>
+      {teams.length === 0 && <div className="empty-state">No teams yet.</div>}
+      {teams.map(t => {
+        const teamYourHoles = your_holes[t.id] || {};
+        const teamMulligans = mulligans[t.id] || {};
+        return (
+          <div key={t.id} className="jm-admin-team">
+            <div className="jm-admin-team-header">
+              <strong>{t.team_name}</strong>
+              <span className="jm-hint">{t.players.length} player{t.players.length === 1 ? '' : 's'}</span>
+            </div>
+
+            {t.players.length === 0 ? (
+              <div className="empty-state" style={{ fontSize: '0.85rem' }}>
+                No players on this team — add players to enable Jeff Martin tracking.
+              </div>
+            ) : (
+              <>
+                {/* Mulligan counts per player */}
+                <div className="jm-admin-section">
+                  <div className="jm-admin-section-label">Mulligans (2 per player per 6 holes)</div>
+                  <div className="jm-admin-mulligans">
+                    {t.players.map((p, i) => {
+                      const m = teamMulligans[i] || { used_count: 0, holes_used: [] };
+                      return (
+                        <div key={i} className="jm-admin-mul-row">
+                          <span className="jm-admin-mul-name">{p || `Player ${i + 1}`}</span>
+                          <input
+                            type="number" min="0" max="6"
+                            value={m.used_count}
+                            onChange={(e) => {
+                              const n = Math.max(0, Math.min(6, parseInt(e.target.value) || 0));
+                              setMulligan(t.id, i, n, m.holes_used);
+                            }}
+                            disabled={busy}
+                            style={{ width: 60 }}
+                            title="Mulligans used"
+                          />
+                          <span className="jm-hint">
+                            {m.holes_used.length > 0 ? `holes ${m.holes_used.join(', ')}` : 'none logged'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Your-hole grid: one column per hole */}
+                <div className="jm-admin-section">
+                  <div className="jm-admin-section-label">"Your hole" picks by hole</div>
+                  <div className="jm-admin-yh-grid">
+                    {Array.from({ length: holeCount }, (_, i) => i + 1).map(h => {
+                      const picked = teamYourHoles[h];
+                      return (
+                        <div key={h} className="jm-admin-yh-cell">
+                          <div className="jm-admin-yh-hole">H{h}</div>
+                          <select
+                            value={picked ?? ''}
+                            onChange={(e) => {
+                              const v = e.target.value === '' ? null : parseInt(e.target.value);
+                              setYourHole(t.id, h, v);
+                            }}
+                            disabled={busy}
+                            className="jm-admin-yh-select"
+                          >
+                            <option value="">—</option>
+                            {t.players.map((p, i) => (
+                              <option key={i} value={i}>{p || `P${i + 1}`}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -581,6 +711,7 @@ export default function EventDetail() {
               ['wolf', '🐺 Wolf'],
               ['nine_points', '🎯 9 Points (Nines)'],
               ['bingo_bango_bongo', '🎲 Bingo Bango Bongo'],
+              ['jeff_martin', '🎖️ Jeff Martin'],
             ].map(([key, label]) => (
               <label key={key} style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
                 <input
@@ -729,6 +860,11 @@ export default function EventDetail() {
           ))}
         </div>
       </div>
+
+      {/* Jeff Martin admin panel — only when enabled */}
+      {enabledGames.includes('jeff_martin') && (
+        <JeffMartinAdminPanel eventId={eventId} holes={holes} showToast={showToast} />
+      )}
 
       {/* Sponsors */}
       <SponsorSection eventId={eventId} sponsors={sponsors} onUpdate={load} />

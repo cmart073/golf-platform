@@ -12,7 +12,7 @@ export async function onRequestGet(context) {
   if (!team) return err('Invalid access token', 404);
 
   const event = await db.prepare(
-    'SELECT id, name, holes, status, locked_at, date FROM events WHERE id = ?'
+    'SELECT id, name, holes, status, locked_at, date, event_type, enabled_games_json FROM events WHERE id = ?'
   ).bind(team.event_id).first();
 
   if (!event) return err('Event not found', 404);
@@ -30,6 +30,36 @@ export async function onRequestGet(context) {
     scoresMap[s.hole_number] = { strokes: s.strokes, updated_at: s.updated_at };
   });
 
+  // Parse enabled games so the client knows whether to show Jeff Martin UI
+  let enabledGames = ['stroke_play'];
+  try {
+    const parsed = JSON.parse(event.enabled_games_json || '["stroke_play"]');
+    if (Array.isArray(parsed)) enabledGames = parsed;
+  } catch { /* leave default */ }
+
+  // Load Jeff Martin state if enabled (table might not exist on older DBs)
+  const yourHoles = {};
+  const mulligans = {};
+  if (enabledGames.includes('jeff_martin')) {
+    try {
+      const { results: yh } = await db.prepare(
+        'SELECT hole_number, player_index FROM hole_your_holes WHERE team_id = ?'
+      ).bind(team.id).all();
+      (yh || []).forEach(r => { yourHoles[r.hole_number] = r.player_index; });
+    } catch { /* table missing */ }
+
+    try {
+      const { results: muls } = await db.prepare(
+        'SELECT player_index, used_count, holes_used_json FROM team_mulligans WHERE team_id = ?'
+      ).bind(team.id).all();
+      (muls || []).forEach(r => {
+        let holes = [];
+        try { holes = JSON.parse(r.holes_used_json || '[]'); } catch { holes = []; }
+        mulligans[r.player_index] = { used_count: r.used_count, holes_used: holes };
+      });
+    } catch { /* table missing */ }
+  }
+
   return json({
     team: {
       id: team.id,
@@ -44,8 +74,12 @@ export async function onRequestGet(context) {
       status: event.status,
       locked_at: event.locked_at,
       date: event.date,
+      event_type: event.event_type,
+      enabled_games: enabledGames,
     },
     pars: eventHoles.reduce((acc, h) => { acc[h.hole_number] = h.par; return acc; }, {}),
     scores: scoresMap,
+    your_holes: yourHoles,
+    mulligans,
   });
 }

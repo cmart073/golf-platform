@@ -283,7 +283,81 @@ function ninePoints(teams, byTeamHole, holeCount) {
   })).sort((a, b) => b.points - a.points);
 }
 
-// ── Apply multiplier ──────────────────────────────────────────
+// ── Jeff Martin (Modified Stableford scramble w/ "Your Hole" bonus) ──
+// Rules:
+//   Format:    4-person scramble (1 team score per hole)
+//   Scoring:   Modified Stableford from strokes vs par
+//   Your Hole: if a team member took every shot on the hole, -1 is applied
+//              to that hole's strokes BEFORE the Stableford table is read.
+//   Mulligans: 2 per person per 6 holes (tracked for display, not scored
+//              by the engine — the strokes entered by the scorer already
+//              reflect any mulligan used).
+//   Riders:    reference rule only, not scored.
+//
+// Stableford table (net = strokes - par, after Your-Hole adjustment):
+//   +2 or more → 0 pts
+//   +1         → 1 pt
+//   0 (par)    → 2 pts
+//   -1 birdie  → 3 pts
+//   -2 eagle   → 4 pts
+//   -3         → 5 pts
+//   -4 or less → 6 pts
+function stablefordPoints(diff) {
+  if (diff >= 2) return 0;
+  if (diff === 1) return 1;
+  if (diff === 0) return 2;
+  if (diff === -1) return 3;
+  if (diff === -2) return 4;
+  if (diff === -3) return 5;
+  return 6; // -4 or less
+}
+
+function jeffMartin(teams, byTeamHole, holeCount, parByHole, yourHolesByTeam) {
+  const rows = teams.map(t => {
+    const yours = yourHolesByTeam?.[t.id] || {}; // { holeNumber: playerIndex }
+    const perHole = [];
+    let totalPoints = 0;
+    let birdies = 0, eagles = 0, pars = 0, yourHoleCount = 0;
+
+    for (let h = 1; h <= holeCount; h++) {
+      const strokes = byTeamHole[t.id]?.[h];
+      if (strokes == null) {
+        perHole.push({ hole: h, strokes: null, points: null, your_hole_player: yours[h] ?? null });
+        continue;
+      }
+      const par = parByHole?.[h] ?? 4;
+      const hasYourHole = yours[h] != null;
+      // Your-Hole: -1 applied to raw strokes before Stableford bucket
+      const adjStrokes = hasYourHole ? strokes - 1 : strokes;
+      const diff = adjStrokes - par;
+      const pts = stablefordPoints(diff);
+
+      if (hasYourHole) yourHoleCount++;
+      if (diff === 0) pars++;
+      if (diff === -1) birdies++;
+      if (diff === -2) eagles++;
+
+      totalPoints += pts;
+      perHole.push({
+        hole: h, strokes, adjusted_strokes: adjStrokes,
+        points: pts, your_hole_player: yours[h] ?? null,
+      });
+    }
+
+    return {
+      team_id: t.id, team_name: t.team_name,
+      points: totalPoints,
+      holes_scored: perHole.filter(r => r.strokes != null).length,
+      birdies, eagles, pars,
+      your_hole_count: yourHoleCount,
+      per_hole: perHole,
+    };
+  });
+
+  return rows.sort((a, b) => b.points - a.points);
+}
+
+
 function applyMultiplier(results, multiplier) {
   if (!multiplier || multiplier <= 1) return results;
   if (!Array.isArray(results)) return results;
@@ -317,11 +391,19 @@ function applyPresses(teams, byTeamHole, holeCount, presses, gameType) {
 export function computeGameResults({
   event, teams, scores, manualPoints,
   presses = [], wolfPicks = [], multipliers = {},
+  yourHoles = [], parByHole = null,
 }) {
   const enabled = safeJsonArray(event.enabled_games_json, ['stroke_play']);
   const holeCount = toNum(event.holes, 18);
   const byTeamHole = buildScoreMaps(teams, scores);
   const out = {};
+
+  // Build yourHoles lookup: { team_id: { hole_number: player_index } }
+  const yourHolesByTeam = {};
+  yourHoles.forEach(y => {
+    yourHolesByTeam[y.team_id] ||= {};
+    yourHolesByTeam[y.team_id][y.hole_number] = y.player_index;
+  });
 
   if (enabled.includes('stroke_play'))
     out.stroke_play = applyMultiplier(strokePlay(teams, byTeamHole), multipliers.stroke_play);
@@ -361,6 +443,9 @@ export function computeGameResults({
 
   if (enabled.includes('nine_points'))
     out.nine_points = applyMultiplier(ninePoints(teams, byTeamHole, holeCount), multipliers.nine_points);
+
+  if (enabled.includes('jeff_martin'))
+    out.jeff_martin = jeffMartin(teams, byTeamHole, holeCount, parByHole, yourHolesByTeam);
 
   return out;
 }

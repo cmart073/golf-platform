@@ -92,7 +92,18 @@ export async function onRequestGet(context) {
   const { results: manualPoints } = await db.prepare(
     'SELECT team_id, hole_number, game_type, points FROM game_points WHERE event_id = ?'
   ).bind(event.id).all();
-  const game_results = computeGameResults({ event, teams, scores: allScores, manualPoints });
+
+  // Fetch Jeff Martin your-hole selections (table may not exist on older DBs)
+  let yourHoles = [];
+  try {
+    const placeholdersY = teamIds.map(() => '?').join(',');
+    const { results } = await db.prepare(
+      `SELECT team_id, hole_number, player_index FROM hole_your_holes WHERE team_id IN (${placeholdersY})`
+    ).bind(...teamIds).all();
+    yourHoles = results || [];
+  } catch { /* table may not exist yet */ }
+
+  const game_results = computeGameResults({ event, teams, scores: allScores, manualPoints, yourHoles, parByHole: parMap });
 
   return json({
     event: { name: event.name, date: event.date, holes: event.holes, status: event.status, leaderboard_visible: true, event_type: event.event_type },

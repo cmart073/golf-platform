@@ -13,6 +13,7 @@ function gameLabel(key) {
     match_play: 'Match Play',
     skins: 'Skins',
     bingo_bango_bongo: 'Bingo Bango Bongo',
+    jeff_martin: '🎖️ Jeff Martin',
   };
   return labels[key] ?? key.replaceAll('_', ' ');
 }
@@ -28,6 +29,7 @@ function gameStat(game, row) {
   if (game === 'match_play') return `${row.points} pts`;
   if (game === 'skins') return `${row.skins_won} skin${row.skins_won !== 1 ? 's' : ''}`;
   if (game === 'bingo_bango_bongo') return `${row.points} pts`;
+  if (game === 'jeff_martin') return `${row.points} pts`;
   return row.net_strokes ?? row.points ?? row.skins_won;
 }
 

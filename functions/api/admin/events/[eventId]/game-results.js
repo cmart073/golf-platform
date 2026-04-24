@@ -42,10 +42,26 @@ export async function onRequestGet(context) {
     wolfPicks = results || [];
   } catch { /* table may not exist yet */ }
 
+  // Fetch Jeff Martin your-hole selections
+  let yourHoles = [];
+  try {
+    const { results } = await db.prepare(
+      'SELECT team_id, hole_number, player_index FROM hole_your_holes WHERE team_id IN (SELECT id FROM teams WHERE event_id = ?)'
+    ).bind(eventId).all();
+    yourHoles = results || [];
+  } catch { /* table may not exist yet */ }
+
+  // Fetch par by hole for Jeff Martin / Stableford math
+  const { results: eventHoles } = await db.prepare(
+    'SELECT hole_number, par FROM event_holes WHERE event_id = ? ORDER BY hole_number'
+  ).bind(eventId).all();
+  const parByHole = {};
+  (eventHoles || []).forEach(h => { parByHole[h.hole_number] = h.par; });
+
   // Fetch multipliers from bet_config_json
   const betConfig = safeJsonObj(event.bet_config_json, {});
   const multipliers = betConfig.multipliers || {};
 
-  const results = computeGameResults({ event, teams, scores, manualPoints, presses, wolfPicks, multipliers });
+  const results = computeGameResults({ event, teams, scores, manualPoints, presses, wolfPicks, multipliers, yourHoles, parByHole });
   return json({ event_type: event.event_type || 'tournament', results, bet_config: betConfig });
 }

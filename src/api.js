@@ -58,6 +58,13 @@ export const api = {
   getScoreContext: (token) => request(`/api/score/${token}/context`),
   submitScore: (token, body) => request(`/api/score/${token}/hole`, { method: 'POST', body: JSON.stringify(body) }),
   submitFinal: (token) => request(`/api/score/${token}/submit`, { method: 'POST', body: JSON.stringify({}) }),
+  setYourHole: (token, body) => request(`/api/score/${token}/your-hole`, { method: 'POST', body: JSON.stringify(body) }),
+  logMulligan: (token, body) => request(`/api/score/${token}/mulligan`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // Admin - Jeff Martin (god mode)
+  getJeffMartin: (eventId) => request(`/api/admin/events/${eventId}/jeff-martin`),
+  setAdminYourHole: (eventId, body) => request(`/api/admin/events/${eventId}/jeff-martin/your-hole`, { method: 'POST', body: JSON.stringify(body) }),
+  setAdminMulligan: (eventId, body) => request(`/api/admin/events/${eventId}/jeff-martin/mulligan`, { method: 'POST', body: JSON.stringify(body) }),
 
   // Public - Match Scorer (single scorecard for whole group)
   getMatchContext: (scorerToken) => request(`/api/score/match/${scorerToken}/context`),

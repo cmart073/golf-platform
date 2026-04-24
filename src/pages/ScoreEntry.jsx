@@ -25,6 +25,8 @@ export default function ScoreEntry() {
   const [submitting, setSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [toast, setToast] = useState('');
+  const [jmBusy, setJmBusy] = useState(false);
+  const [showRules, setShowRules] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -53,6 +55,9 @@ export default function ScoreEntry() {
       setCtx(prev => ({ ...prev, scores: result.scores }));
       showToast('Saved ✓');
 
+      // If Jeff Martin is on, don't auto-advance — let the scorer pick the your-hole player first.
+      if (jmEnabled) return;
+
       // Auto-advance to next empty hole
       const totalHoles = ctx.event.holes;
       for (let i = 1; i <= totalHoles; i++) {
@@ -65,6 +70,42 @@ export default function ScoreEntry() {
       // All holes filled — stay on current
     } catch (e) { showToast('Error: ' + e.message); }
     finally { setSaving(false); }
+  };
+
+  const handleSetYourHole = async (playerIndex) => {
+    setJmBusy(true);
+    try {
+      const res = await api.setYourHole(accessToken, {
+        hole_number: selectedHole,
+        player_index: playerIndex,
+      });
+      setCtx(prev => ({ ...prev, your_holes: res.your_holes }));
+      showToast(playerIndex === null ? 'Cleared' : 'Saved ✓');
+    } catch (e) { showToast('Error: ' + e.message); }
+    finally { setJmBusy(false); }
+  };
+
+  const handleMulligan = async (playerIndex, delta) => {
+    setJmBusy(true);
+    try {
+      const res = await api.logMulligan(accessToken, {
+        player_index: playerIndex,
+        hole_number: selectedHole,
+        delta,
+      });
+      setCtx(prev => ({ ...prev, mulligans: res.mulligans }));
+      showToast(delta > 0 ? 'Mulligan logged ✓' : 'Mulligan removed');
+    } catch (e) { showToast(e.message); }
+    finally { setJmBusy(false); }
+  };
+
+  const advanceToNextEmpty = () => {
+    const totalHoles = ctx.event.holes;
+    const sc = ctx.scores;
+    for (let i = 1; i <= totalHoles; i++) {
+      const nextHole = ((selectedHole - 1 + i) % totalHoles) + 1;
+      if (!sc[nextHole]) { setSelectedHole(nextHole); return; }
+    }
   };
 
   const handleSubmitFinal = async () => {
@@ -97,6 +138,15 @@ export default function ScoreEntry() {
   const isNotLive = event.status !== 'live' && event.status !== 'completed';
   const totalHoles = event.holes;
   const currentPar = pars[selectedHole] || 4;
+
+  // Jeff Martin state
+  const enabledGames = event.enabled_games || ['stroke_play'];
+  const jmEnabled = enabledGames.includes('jeff_martin');
+  const roster = Array.isArray(team.players) ? team.players : [];
+  const yourHoles = ctx.your_holes || {};
+  const mulligans = ctx.mulligans || {};
+  const selectedHoleYourPlayer = yourHoles[selectedHole];
+  const hasScoreForSelected = !!scores[selectedHole];
 
   // Totals
   const holesEntered = Object.keys(scores).length;
@@ -247,6 +297,133 @@ export default function ScoreEntry() {
               </div>
             )}
           </div>
+
+          {/* ═══ JEFF MARTIN PANEL ═══ */}
+          {jmEnabled && !isLocked && !isNotLive && (
+            <div className="jm-panel">
+              <div className="jm-panel-header">
+                <span className="jm-panel-title">Jeff Martin — Hole {selectedHole}</span>
+                <button className="jm-rules-toggle" onClick={() => setShowRules(v => !v)} type="button">
+                  {showRules ? 'Hide rules' : 'View rules'}
+                </button>
+              </div>
+
+              {/* Your Hole picker */}
+              <div className="jm-section">
+                <div className="jm-section-label">
+                  Whose hole? <span className="jm-hint">(all shots from one player → −1)</span>
+                </div>
+                {!hasScoreForSelected ? (
+                  <div className="jm-muted">Enter strokes first, then mark the hole.</div>
+                ) : roster.length === 0 ? (
+                  <div className="jm-muted">No players added to this team. Ask your event admin to add teammates.</div>
+                ) : (
+                  <div className="jm-yh-options">
+                    <button
+                      type="button"
+                      className={`jm-yh-opt ${selectedHoleYourPlayer == null ? 'active' : ''}`}
+                      onClick={() => handleSetYourHole(null)}
+                      disabled={jmBusy}
+                    >None</button>
+                    {roster.map((p, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={`jm-yh-opt ${selectedHoleYourPlayer === i ? 'active' : ''}`}
+                        onClick={() => handleSetYourHole(i)}
+                        disabled={jmBusy}
+                      >{p || `Player ${i + 1}`}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Mulligans */}
+              {roster.length > 0 && (
+                <div className="jm-section">
+                  <div className="jm-section-label">
+                    Mulligans <span className="jm-hint">(2 per player per 6 holes)</span>
+                  </div>
+                  <div className="jm-mulligan-list">
+                    {roster.map((p, i) => {
+                      const used = mulligans[i]?.used_count ?? 0;
+                      const holesUsed = mulligans[i]?.holes_used ?? [];
+                      return (
+                        <div className="jm-mulligan-row" key={i}>
+                          <div className="jm-mulligan-name">{p || `Player ${i + 1}`}</div>
+                          <div className="jm-mulligan-count">
+                            {used}/6 <span className="jm-hint">used</span>
+                            {holesUsed.length > 0 && (
+                              <div className="jm-mulligan-holes">Holes: {holesUsed.join(', ')}</div>
+                            )}
+                          </div>
+                          <div className="jm-mulligan-btns">
+                            <button
+                              type="button"
+                              className="jm-mul-btn"
+                              onClick={() => handleMulligan(i, -1)}
+                              disabled={jmBusy || used === 0}
+                              aria-label="Remove last mulligan"
+                            >−</button>
+                            <button
+                              type="button"
+                              className="jm-mul-btn jm-mul-btn-add"
+                              onClick={() => handleMulligan(i, 1)}
+                              disabled={jmBusy}
+                              aria-label={`Log mulligan for ${p || `Player ${i + 1}`} on hole ${selectedHole}`}
+                            >+ mulligan</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Next hole shortcut when strokes are entered */}
+              {hasScoreForSelected && (
+                <button className="btn btn-secondary jm-next-btn" onClick={advanceToNextEmpty} type="button">
+                  Next unfilled hole →
+                </button>
+              )}
+
+              {/* Rules popover */}
+              {showRules && (
+                <div className="jm-rules">
+                  <div className="jm-rules-section">
+                    <div className="jm-rules-title">Format</div>
+                    <div>4-person scramble, Modified Stableford scoring.</div>
+                  </div>
+                  <div className="jm-rules-section">
+                    <div className="jm-rules-title">Stableford points</div>
+                    <table className="jm-rules-table">
+                      <tbody>
+                        <tr><td>+2 or worse</td><td>0 pts</td></tr>
+                        <tr><td>+1</td><td>1 pt</td></tr>
+                        <tr><td>Par</td><td>2 pts</td></tr>
+                        <tr><td>−1 (Birdie)</td><td>3 pts</td></tr>
+                        <tr><td>−2 (Eagle)</td><td>4 pts</td></tr>
+                        <tr><td>−3</td><td>5 pts</td></tr>
+                        <tr><td>−4 or better</td><td>6 pts</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="jm-rules-section">
+                    <div className="jm-rules-title">Mulligans</div>
+                    <div>2 per person per 6 holes (6 total over 18).</div>
+                  </div>
+                  <div className="jm-rules-section">
+                    <div className="jm-rules-title">Your Hole (−1 bonus)</div>
+                    <div>If all shots on a hole were from the same player, subtract 1 from the score. Example: one player's drive, approach, and made putt for a 3 counts as a 2.</div>
+                  </div>
+                  <div className="jm-rules-section">
+                    <div className="jm-rules-title">Riders</div>
+                    <div>Any player can play as an extra for any shot on any team at any time. (Not tracked here — just a rule.)</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 

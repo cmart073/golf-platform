@@ -5,10 +5,14 @@ function now() { return new Date().toISOString(); }
 
 export async function onRequestGet(context) {
   const db = context.env.DB;
-  const orgId = context.params.orgId;
+  // Return all courses across all organizations — courses are shared globally.
+  // Includes the owner org's name/slug so the UI can show provenance.
   const { results } = await db.prepare(
-    'SELECT * FROM courses WHERE org_id = ? ORDER BY name'
-  ).bind(orgId).all();
+    `SELECT c.*, o.name AS org_name, o.slug AS org_slug
+     FROM courses c
+     LEFT JOIN organizations o ON o.id = c.org_id
+     ORDER BY c.name`
+  ).all();
   return json(results);
 }
 

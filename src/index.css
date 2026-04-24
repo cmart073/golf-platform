@@ -428,6 +428,303 @@ td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--slate-100); vertic
 .god-scorer-link { background: var(--sand-50); border: 1px solid var(--sand-200); border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-top: 0.75rem; }
 
 /* ═══════════════════════════════════════════════════════════════════
+   JEFF MARTIN — scorer panel + admin override panel
+═══════════════════════════════════════════════════════════════════ */
+
+/* ── Scorer-side panel (ScoreEntry.jsx) ── */
+.jm-panel {
+  margin-top: 1rem;
+  background: white;
+  border: 1px solid var(--slate-200);
+  border-left: 4px solid var(--green-700);
+  border-radius: var(--radius-md);
+  padding: 1rem 1rem 0.85rem;
+  box-shadow: var(--shadow-sm);
+}
+.jm-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--slate-100);
+}
+.jm-panel-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--green-900);
+}
+.jm-rules-toggle {
+  background: transparent;
+  border: 1px solid var(--slate-300);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.72rem;
+  color: var(--slate-600);
+  cursor: pointer;
+  font-family: var(--font-body);
+  letter-spacing: 0.02em;
+}
+.jm-rules-toggle:hover { border-color: var(--green-600); color: var(--green-700); }
+
+.jm-section { margin-bottom: 0.9rem; }
+.jm-section:last-child { margin-bottom: 0.25rem; }
+.jm-section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--slate-600);
+  margin-bottom: 0.5rem;
+}
+.jm-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--slate-400);
+  font-size: 0.8em;
+  margin-left: 0.25rem;
+}
+.jm-muted {
+  font-size: 0.85rem;
+  color: var(--slate-400);
+  font-style: italic;
+  padding: 0.5rem 0;
+}
+
+/* Your-hole picker */
+.jm-yh-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.jm-yh-opt {
+  background: white;
+  border: 1.5px solid var(--slate-200);
+  border-radius: 999px;
+  padding: 0.5rem 0.95rem;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  color: var(--slate-700);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 40px;
+}
+.jm-yh-opt:hover:not(:disabled) { border-color: var(--green-500); color: var(--green-800); }
+.jm-yh-opt.active {
+  background: var(--green-700);
+  border-color: var(--green-700);
+  color: white;
+  font-weight: 600;
+}
+.jm-yh-opt:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Mulligan list */
+.jm-mulligan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.jm-mulligan-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--slate-50);
+  border-radius: var(--radius-sm);
+}
+.jm-mulligan-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--slate-800);
+}
+.jm-mulligan-count {
+  font-size: 0.82rem;
+  color: var(--slate-600);
+  text-align: right;
+}
+.jm-mulligan-holes {
+  font-size: 0.7rem;
+  color: var(--slate-400);
+  margin-top: 0.1rem;
+}
+.jm-mulligan-btns {
+  display: flex;
+  gap: 0.3rem;
+}
+.jm-mul-btn {
+  background: white;
+  border: 1px solid var(--slate-300);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  color: var(--slate-700);
+  min-height: 36px;
+  transition: all 0.15s;
+}
+.jm-mul-btn:hover:not(:disabled) { border-color: var(--green-600); color: var(--green-800); }
+.jm-mul-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.jm-mul-btn-add {
+  background: var(--green-700);
+  color: white;
+  border-color: var(--green-700);
+  font-weight: 600;
+}
+.jm-mul-btn-add:hover:not(:disabled) {
+  background: var(--green-800);
+  color: white;
+}
+
+.jm-next-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  justify-content: center;
+  min-height: 42px;
+}
+
+/* Rules drawer */
+.jm-rules {
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--sand-50);
+  border: 1px solid var(--sand-200);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  color: var(--slate-700);
+  line-height: 1.5;
+}
+.jm-rules-section { margin-bottom: 0.75rem; }
+.jm-rules-section:last-child { margin-bottom: 0; }
+.jm-rules-title {
+  font-weight: 700;
+  color: var(--green-900);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+.jm-rules-table {
+  width: 100%;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  border-collapse: collapse;
+}
+.jm-rules-table td {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--sand-200);
+}
+.jm-rules-table tr:last-child td { border-bottom: none; }
+.jm-rules-table td:last-child {
+  text-align: right;
+  font-weight: 600;
+  color: var(--green-800);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Admin panel (EventDetail.jsx) ── */
+.jm-admin-team {
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.85rem;
+  background: var(--slate-50);
+}
+.jm-admin-team:last-child { margin-bottom: 0; }
+.jm-admin-team-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed var(--slate-200);
+}
+.jm-admin-team-header strong {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--green-900);
+  font-weight: 400;
+}
+.jm-admin-section { margin-top: 0.75rem; }
+.jm-admin-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+  margin-bottom: 0.5rem;
+}
+.jm-admin-mulligans {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.5rem;
+}
+.jm-admin-mul-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: white;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm);
+}
+.jm-admin-mul-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--slate-800);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jm-admin-yh-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+  gap: 0.35rem;
+}
+.jm-admin-yh-cell {
+  background: white;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.jm-admin-yh-hole {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--slate-500);
+  letter-spacing: 0.04em;
+}
+.jm-admin-yh-select {
+  width: 100%;
+  padding: 0.25rem 0.15rem;
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  border: 1px solid var(--slate-200);
+  border-radius: 4px;
+  background: white;
+  color: var(--slate-800);
+}
+.jm-admin-yh-select:focus { outline: none; border-color: var(--green-500); }
+
+/* Mobile tweaks */
+@media (max-width: 520px) {
+  .jm-mulligan-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+  .jm-mulligan-count { text-align: left; }
+  .jm-mulligan-btns { justify-content: flex-end; }
+  .jm-admin-yh-grid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    LANDING PAGE — boutique clubhouse aesthetic
    Deep forest greens, cream, warm gold, serif editorial headlines
 ═══════════════════════════════════════════════════════════════════ */

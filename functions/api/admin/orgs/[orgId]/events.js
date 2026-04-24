@@ -46,9 +46,9 @@ export async function onRequestPost(context) {
     if (!course_id) return err('course_id required');
 
     const course = await db.prepare(
-      'SELECT id FROM courses WHERE id = ? AND org_id = ?'
-    ).bind(course_id, orgId).first();
-    if (!course) return err('course not found in this organization');
+      'SELECT id FROM courses WHERE id = ?'
+    ).bind(course_id).first();
+    if (!course) return err('course not found');
 
     const { results: courseHoles } = await db.prepare(
       'SELECT hole_number, par FROM course_holes WHERE course_id = ? AND hole_number <= ? ORDER BY hole_number'
