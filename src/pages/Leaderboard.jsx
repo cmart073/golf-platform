@@ -98,6 +98,8 @@ export default function Leaderboard() {
   const isLive = event.status === 'live';
   const isCompleted = event.status === 'completed';
   const isWeeklyMatch = event.event_type === 'weekly_match';
+  const enabledGames = event.enabled_games || [];
+  const jmEnabled = enabledGames.includes('jeff_martin');
   const hasGameResults = game_results && Object.keys(game_results).length > 0;
 
   return (
@@ -127,11 +129,15 @@ export default function Leaderboard() {
         <>
           {/* Stroke play / main leaderboard */}
           <div className="lb-table-wrap">
+            {jmEnabled && (
+              <div className="lb-mode-tag">🎖️ Ranked by Jeff Martin points (Modified Stableford)</div>
+            )}
             <table className="lb-table">
               <thead>
                 <tr>
                   <th style={{ width: 50 }}>Pos</th>
                   <th>Team</th>
+                  {jmEnabled && <th style={{ width: 70, textAlign: 'center' }}>Pts</th>}
                   <th style={{ width: 80, textAlign: 'center' }}>To Par</th>
                   <th style={{ width: 70, textAlign: 'center' }}>Thru</th>
                   <th style={{ width: 70, textAlign: 'center' }}>Proj</th>
@@ -155,6 +161,16 @@ export default function Leaderboard() {
                           </div>
                         )}
                       </td>
+                      {jmEnabled && (
+                        <td className="lb-jm-pts">
+                          <span className="lb-jm-pts-val">{team.jm_points ?? 0}</span>
+                          {team.jm_your_hole_count > 0 && (
+                            <span className="lb-jm-yh" title={`${team.jm_your_hole_count} your-hole bonus${team.jm_your_hole_count === 1 ? '' : 'es'}`}>
+                              ●{team.jm_your_hole_count}
+                            </span>
+                          )}
+                        </td>
+                      )}
                       <td className="lb-to-par">
                         <span className={`lb-to-par-val ${team.to_par < 0 ? 'under' : team.to_par > 0 ? 'over' : 'even'}`}>
                           {formatToPar(team.to_par)}

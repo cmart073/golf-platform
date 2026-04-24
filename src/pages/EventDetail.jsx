@@ -118,7 +118,7 @@ function SponsorSection({ eventId, sponsors: initialSponsors, onUpdate }) {
 }
 
 /* ── God Mode: Team Scorecard Editor ── */
-function TeamScorecard({ team, holes, eventId, onUpdate, showToast }) {
+function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = false }) {
   const [expanded, setExpanded] = useState(false);
   const [editHole, setEditHole] = useState(null);
   const [editVal, setEditVal] = useState('');
@@ -134,6 +134,32 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast }) {
     return sum + (hole ? hole.par : 0);
   }, 0);
   const toPar = totalStrokes - parDone;
+
+  // Jeff Martin: per-hole Stableford points with your-hole bonus
+  const yourHoles = team.your_holes || {};
+  const stablefordPoints = (diff) => {
+    if (diff >= 2) return 0;
+    if (diff === 1) return 1;
+    if (diff === 0) return 2;
+    if (diff === -1) return 3;
+    if (diff === -2) return 4;
+    if (diff === -3) return 5;
+    return 6;
+  };
+  const jmPointsByHole = {};
+  let jmTotal = 0;
+  if (jmEnabled) {
+    holes.forEach(h => {
+      const sc = team.scores?.[h.hole_number];
+      const strokes = sc ? (sc.strokes || sc) : null;
+      if (strokes == null) return;
+      const hasYH = yourHoles[h.hole_number] != null;
+      const adj = hasYH ? strokes - 1 : strokes;
+      const pts = stablefordPoints(adj - h.par);
+      jmPointsByHole[h.hole_number] = { pts, hasYH };
+      jmTotal += pts;
+    });
+  }
 
   const formatToPar = (v) => v === 0 ? 'E' : v > 0 ? `+${v}` : `${v}`;
 
@@ -175,6 +201,9 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast }) {
         </div>
         <div className="god-team-right">
           <span className="god-stat">{holesEntered}/{totalHoles} holes</span>
+          {jmEnabled && holesEntered > 0 && (
+            <span className="god-jm-badge" title="Jeff Martin — Stableford points">🎖️ {jmTotal}</span>
+          )}
           {holesEntered > 0 && (
             <span className={`god-topar ${toPar < 0 ? 'under' : toPar > 0 ? 'over' : 'even'}`}>
               {formatToPar(toPar)}
@@ -287,6 +316,22 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast }) {
                     {holesEntered > 0 ? formatToPar(toPar) : ''}
                   </td>
                 </tr>
+                {jmEnabled && (
+                  <tr className="god-jm-row">
+                    <td title="Stableford points (Your-Hole bonus included)">JM Pts</td>
+                    {holes.map(h => {
+                      const cell = jmPointsByHole[h.hole_number];
+                      if (!cell) return <td key={h.hole_number}></td>;
+                      return (
+                        <td key={h.hole_number}>
+                          {cell.pts}
+                          {cell.hasYH && <span className="god-yh-dot" title="Your hole bonus applied">●</span>}
+                        </td>
+                      );
+                    })}
+                    <td className="god-total-td god-jm-total">{holesEntered > 0 ? jmTotal : ''}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -938,7 +983,7 @@ export default function EventDetail() {
                     showToast={showToast}
                   />
                 </div>
-                <TeamScorecard team={t} holes={holes} eventId={eventId} onUpdate={load} showToast={showToast} />
+                <TeamScorecard team={t} holes={holes} eventId={eventId} onUpdate={load} showToast={showToast} jmEnabled={enabledGames.includes('jeff_martin')} />
               </div>
             ))}
           </div>

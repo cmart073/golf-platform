@@ -105,8 +105,36 @@ export async function onRequestGet(context) {
 
   const game_results = computeGameResults({ event, teams, scores: allScores, manualPoints, yourHoles, parByHole: parMap });
 
+  // Parse enabled games for the client (so it can decide ranking/column layout)
+  let enabledGames = ['stroke_play'];
+  try {
+    const parsed = JSON.parse(event.enabled_games_json || '["stroke_play"]');
+    if (Array.isArray(parsed)) enabledGames = parsed;
+  } catch { /* keep default */ }
+
+  // If Jeff Martin is on, enrich each team row with jm_points so the client
+  // can rank and display without recomputing.
+  if (enabledGames.includes('jeff_martin') && Array.isArray(game_results.jeff_martin)) {
+    const jmByTeam = {};
+    game_results.jeff_martin.forEach(r => { jmByTeam[r.team_id] = r; });
+    leaderboard.forEach(row => {
+      const jm = jmByTeam[row.id];
+      row.jm_points = jm ? jm.points : 0;
+      row.jm_per_hole = jm ? jm.per_hole : [];
+      row.jm_your_hole_count = jm ? jm.your_hole_count : 0;
+    });
+    // Re-sort by JM points desc (tiebreak: more holes scored first, then earlier updated)
+    leaderboard.sort((a, b) => {
+      if (b.jm_points !== a.jm_points) return b.jm_points - a.jm_points;
+      if (a.holes_completed !== b.holes_completed) return b.holes_completed - a.holes_completed;
+      if (!a.last_updated) return 1;
+      if (!b.last_updated) return -1;
+      return a.last_updated < b.last_updated ? -1 : 1;
+    });
+  }
+
   return json({
-    event: { name: event.name, date: event.date, holes: event.holes, status: event.status, leaderboard_visible: true, event_type: event.event_type },
+    event: { name: event.name, date: event.date, holes: event.holes, status: event.status, leaderboard_visible: true, event_type: event.event_type, enabled_games: enabledGames },
     org: { name: org.name },
     totals: { total_par: totalPar },
     teams: leaderboard,

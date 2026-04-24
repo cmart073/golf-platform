@@ -54,12 +54,21 @@ export async function onRequestGet(context) {
   ).bind(eventId).all();
 
   let allScores = [];
+  let allYourHoles = [];
   if (teams.length > 0) {
     const placeholders = teams.map(() => '?').join(',');
     const { results } = await db.prepare(
       `SELECT team_id, hole_number, strokes, updated_at, updated_by FROM hole_scores WHERE team_id IN (${placeholders}) ORDER BY hole_number`
     ).bind(...teams.map(t => t.id)).all();
     allScores = results;
+
+    // Jeff Martin your-hole selections (table may not exist on older DBs)
+    try {
+      const { results: yh } = await db.prepare(
+        `SELECT team_id, hole_number, player_index FROM hole_your_holes WHERE team_id IN (${placeholders})`
+      ).bind(...teams.map(t => t.id)).all();
+      allYourHoles = yh || [];
+    } catch { /* table missing */ }
   }
 
   const teamsWithScores = teams.map(t => ({
@@ -71,6 +80,9 @@ export async function onRequestGet(context) {
         acc[s.hole_number] = { strokes: s.strokes, updated_at: s.updated_at, updated_by: s.updated_by };
         return acc;
       }, {}),
+    your_holes: allYourHoles
+      .filter(y => y.team_id === t.id)
+      .reduce((acc, y) => { acc[y.hole_number] = y.player_index; return acc; }, {}),
   }));
 
   const { results: gamePoints } = await db.prepare(

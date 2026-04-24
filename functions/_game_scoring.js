@@ -302,7 +302,7 @@ function ninePoints(teams, byTeamHole, holeCount) {
 //   -2 eagle   → 4 pts
 //   -3         → 5 pts
 //   -4 or less → 6 pts
-function stablefordPoints(diff) {
+export function stablefordPoints(diff) {
   if (diff >= 2) return 0;
   if (diff === 1) return 1;
   if (diff === 0) return 2;

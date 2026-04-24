@@ -9,6 +9,18 @@ function ScoreDiff({ strokes, par }) {
   return <span className="score-diff even">E</span>;
 }
 
+// Modified Stableford table used by Jeff Martin. Kept in sync with
+// functions/_game_scoring.js::stablefordPoints.
+function stablefordPoints(diff) {
+  if (diff >= 2) return 0;
+  if (diff === 1) return 1;
+  if (diff === 0) return 2;
+  if (diff === -1) return 3;
+  if (diff === -2) return 4;
+  if (diff === -3) return 5;
+  return 6;
+}
+
 function formatToPar(val) {
   if (val === 0) return 'E';
   return val > 0 ? `+${val}` : `${val}`;
@@ -185,6 +197,18 @@ export default function ScoreEntry() {
   const toPar = totalStrokes - totalParDone;
   const allHolesComplete = holesEntered >= totalHoles;
 
+  // Jeff Martin running total — sum of Stableford points with your-hole bonus
+  const jmTotalPoints = jmEnabled
+    ? Object.keys(scores).reduce((sum, h) => {
+        const s = scores[h];
+        if (!s) return sum;
+        const par = pars[h] || 4;
+        const hasYH = yourHoles[h] != null;
+        const adj = hasYH ? s.strokes - 1 : s.strokes;
+        return sum + stablefordPoints(adj - par);
+      }, 0)
+    : 0;
+
   return (
     <div className="score-page">
       {/* Header */}
@@ -202,6 +226,12 @@ export default function ScoreEntry() {
       {/* To-Par Bar */}
       {holesEntered > 0 && (
         <div className="score-topar-bar">
+          {jmEnabled && (
+            <div className="score-topar-item">
+              <div className="score-topar-label">JM Pts</div>
+              <div className="score-topar-val" style={{ color: 'var(--green-800)' }}>{jmTotalPoints}</div>
+            </div>
+          )}
           <div className="score-topar-item">
             <div className="score-topar-label">To Par</div>
             <div className={`score-topar-val ${toPar < 0 ? 'under' : toPar > 0 ? 'over' : 'even'}`}>
@@ -463,12 +493,35 @@ export default function ScoreEntry() {
         <div className="scores-summary" style={{ marginTop: '1.5rem' }}>
           <table>
             <thead>
-              <tr><th>Hole</th><th>Par</th><th>Score</th><th>+/−</th></tr>
+              <tr>
+                <th>Hole</th>
+                <th>Par</th>
+                <th>Score</th>
+                <th>+/−</th>
+                {jmEnabled && <th title="Stableford points (with Your-Hole bonus)">Pts</th>}
+              </tr>
             </thead>
             <tbody>
               {Array.from({ length: totalHoles }, (_, i) => i + 1).map(h => {
                 const s = scores[h];
                 const par = pars[h] || 4;
+                // Stableford + your-hole adjustment for this row
+                let jmCell = null;
+                if (jmEnabled) {
+                  if (s) {
+                    const hasYH = yourHoles[h] != null;
+                    const adj = hasYH ? s.strokes - 1 : s.strokes;
+                    const pts = stablefordPoints(adj - par);
+                    jmCell = (
+                      <td style={{ fontWeight: 600, color: 'var(--green-800)' }}>
+                        {pts}
+                        {hasYH && <span className="jm-yh-dot" title={`Your hole: ${team.players[yourHoles[h]] || `Player ${yourHoles[h] + 1}`}`}> ●</span>}
+                      </td>
+                    );
+                  } else {
+                    jmCell = <td style={{ color: 'var(--slate-300)' }}>—</td>;
+                  }
+                }
                 return (
                   <tr key={h}
                     onClick={() => !isTeamLocked && setSelectedHole(h)}
@@ -480,6 +533,7 @@ export default function ScoreEntry() {
                       {s ? s.strokes : '—'}
                     </td>
                     <td>{s && <ScoreDiff strokes={s.strokes} par={par} />}</td>
+                    {jmCell}
                   </tr>
                 );
               })}
@@ -488,6 +542,7 @@ export default function ScoreEntry() {
                 <td>{totalParDone}</td>
                 <td>{totalStrokes}</td>
                 <td><ScoreDiff strokes={totalStrokes} par={totalParDone} /></td>
+                {jmEnabled && <td style={{ color: 'var(--green-800)' }}>{jmTotalPoints}</td>}
               </tr>
             </tbody>
           </table>

@@ -724,6 +724,87 @@ td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--slate-100); vertic
   .jm-admin-yh-grid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
 }
 
+/* ── Stableford display accents ── */
+
+/* Scorer summary-table dot indicating a your-hole row */
+.jm-yh-dot {
+  color: var(--green-700);
+  font-size: 0.7em;
+  margin-left: 0.15rem;
+  vertical-align: 0.15em;
+}
+
+/* Public leaderboard: ranked-by-JM tag */
+.lb-mode-tag {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  background: var(--sand-50);
+  border: 1px solid var(--sand-200);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--green-900);
+}
+
+.lb-jm-pts {
+  text-align: center;
+  font-family: var(--font-display);
+}
+.lb-jm-pts-val {
+  font-size: 1.3rem;
+  color: var(--green-800);
+  font-weight: 600;
+}
+.lb-jm-yh {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 0.65rem;
+  color: var(--green-700);
+  margin-top: 0.05rem;
+  letter-spacing: 0.04em;
+}
+
+/* Admin TeamScorecard: JM Pts row */
+.god-jm-row td {
+  background: var(--sand-50);
+  font-weight: 600;
+  color: var(--green-800);
+  font-size: 0.9rem;
+}
+.god-jm-row td:first-child {
+  font-weight: 700;
+  color: var(--green-900);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.god-jm-total {
+  color: var(--green-900) !important;
+  font-weight: 700;
+}
+.god-yh-dot {
+  color: var(--green-700);
+  font-size: 0.6em;
+  margin-left: 0.12rem;
+  vertical-align: 0.2em;
+}
+
+/* Collapsed team-header JM badge */
+.god-jm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem 0.55rem;
+  background: var(--sand-50);
+  border: 1px solid var(--sand-200);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--green-900);
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    LANDING PAGE — boutique clubhouse aesthetic
    Deep forest greens, cream, warm gold, serif editorial headlines
