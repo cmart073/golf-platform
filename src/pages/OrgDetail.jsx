@@ -208,6 +208,7 @@ function CreateEventForm({ orgId, courses, onCreated }) {
             ['wolf', '🐺 Wolf'],
             ['nine_points', '🎯 9 Points (Nines)'],
             ['bingo_bango_bongo', '🎲 Bingo Bango Bongo'],
+            ['jeff_martin', '🎖️ Jeff Martin'],
           ].map(([key, label]) => (
             <label key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               <input

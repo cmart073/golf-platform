@@ -9,7 +9,7 @@ function json(data, status = 200) { return new Response(JSON.stringify(data), { 
 function err(message, status = 400) { return json({ error: message }, status); }
 function now() { return new Date().toISOString(); }
 function normalizeGames(inputGames) {
-  const validGames = ['stroke_play', 'match_play', 'skins', 'bingo', 'bango', 'bongo'];
+  const validGames = ['stroke_play', 'match_play', 'skins', 'bingo', 'bango', 'bongo', 'nassau', 'wolf', 'nine_points', 'jeff_martin'];
   const raw = Array.isArray(inputGames) ? inputGames.filter((g) => validGames.includes(g)) : ['stroke_play'];
 
   if (raw.includes('stroke_play') && raw.includes('match_play')) {
