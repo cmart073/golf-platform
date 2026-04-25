@@ -47,9 +47,27 @@ export async function onRequestPost(context) {
   // Coerce jm_show_mulligans to 0/1; default 1 (visible) when undefined
   const showMulligans = jm_show_mulligans === false || jm_show_mulligans === 0 ? 0 : 1;
 
-  await db.prepare(
-    'UPDATE events SET event_type = ?, enabled_games_json = ?, scorer_token = ?, jm_show_mulligans = ? WHERE id = ?'
-  ).bind(safeType, enabledGamesJson, scorerToken, showMulligans, eventId).run();
+  // Try the new schema first (with jm_show_mulligans). If the column doesn't
+  // exist yet (migration 0008 hasn't run on this D1), fall back to the
+  // pre-0008 UPDATE so the save still succeeds — the toggle is then a no-op
+  // for that event until the migration runs.
+  try {
+    await db.prepare(
+      'UPDATE events SET event_type = ?, enabled_games_json = ?, scorer_token = ?, jm_show_mulligans = ? WHERE id = ?'
+    ).bind(safeType, enabledGamesJson, scorerToken, showMulligans, eventId).run();
+  } catch (e) {
+    const msg = String(e?.message || e);
+    if (/no such column.*jm_show_mulligans/i.test(msg)) {
+      console.warn('jm_show_mulligans column missing — run migration 0008. Falling back.');
+      await db.prepare(
+        'UPDATE events SET event_type = ?, enabled_games_json = ?, scorer_token = ? WHERE id = ?'
+      ).bind(safeType, enabledGamesJson, scorerToken, eventId).run();
+    } else {
+      // Surface the real error to the client as JSON instead of letting the
+      // function crash and return HTML.
+      return err('Database error: ' + msg, 500);
+    }
+  }
 
   return json({
     success: true,
