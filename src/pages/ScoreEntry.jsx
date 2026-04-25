@@ -184,6 +184,7 @@ export default function ScoreEntry() {
   // Jeff Martin state
   const enabledGames = event.enabled_games || ['stroke_play'];
   const jmEnabled = enabledGames.includes('jeff_martin');
+  const jmShowMulligans = event.jm_show_mulligans !== false; // legacy events default to visible
   const roster = Array.isArray(team.players) ? team.players : [];
   const yourHoles = ctx.your_holes || {};
   const mulligans = ctx.mulligans || {};
@@ -400,7 +401,7 @@ export default function ScoreEntry() {
               </div>
 
               {/* Mulligans */}
-              {roster.length > 0 && (
+              {jmShowMulligans && roster.length > 0 && (
                 <div className="jm-section">
                   <div className="jm-section-label">
                     Mulligans <span className="jm-hint">(2 per player per 6 holes)</span>
@@ -471,7 +472,10 @@ export default function ScoreEntry() {
                   </div>
                   <div className="jm-rules-section">
                     <div className="jm-rules-title">Mulligans</div>
-                    <div>2 per person per 6 holes (6 total over 18).</div>
+                    <div>
+                      2 per person per 6 holes (6 total over 18).
+                      {!jmShowMulligans && ' Tracked on the honor system for this event — adjust your strokes accordingly.'}
+                    </div>
                   </div>
                   <div className="jm-rules-section">
                     <div className="jm-rules-title">Your Hole (−1 bonus)</div>

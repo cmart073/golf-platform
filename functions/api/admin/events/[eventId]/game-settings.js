@@ -23,7 +23,7 @@ export async function onRequestPost(context) {
   const db = context.env.DB;
   const eventId = context.params.eventId;
   const body = await context.request.json();
-  const { event_type, enabled_games } = body;
+  const { event_type, enabled_games, jm_show_mulligans } = body;
 
   const safeType = event_type === 'weekly_match' ? 'weekly_match' : 'tournament';
   const normalized = normalizeGames(enabled_games);
@@ -44,14 +44,18 @@ export async function onRequestPost(context) {
     scorerToken = null;
   }
 
+  // Coerce jm_show_mulligans to 0/1; default 1 (visible) when undefined
+  const showMulligans = jm_show_mulligans === false || jm_show_mulligans === 0 ? 0 : 1;
+
   await db.prepare(
-    'UPDATE events SET event_type = ?, enabled_games_json = ?, scorer_token = ? WHERE id = ?'
-  ).bind(safeType, enabledGamesJson, scorerToken, eventId).run();
+    'UPDATE events SET event_type = ?, enabled_games_json = ?, scorer_token = ?, jm_show_mulligans = ? WHERE id = ?'
+  ).bind(safeType, enabledGamesJson, scorerToken, showMulligans, eventId).run();
 
   return json({
     success: true,
     event_type: safeType,
     enabled_games: JSON.parse(enabledGamesJson),
     scorer_token: scorerToken,
+    jm_show_mulligans: !!showMulligans,
   });
 }

@@ -490,6 +490,7 @@ export default function EventDetail() {
   const [gameResults, setGameResults] = useState({});
   const [eventType, setEventType] = useState('tournament');
   const [enabledGames, setEnabledGames] = useState(['stroke_play']);
+  const [jmShowMulligans, setJmShowMulligans] = useState(true);
   const [gamePointTeam, setGamePointTeam] = useState('');
   const [gamePointHole, setGamePointHole] = useState(1);
   const [gamePointType, setGamePointType] = useState('bingo');
@@ -529,6 +530,8 @@ export default function EventDetail() {
       setData(d);
       setGameResults(g.results || {});
       setEventType(d.event.event_type || 'tournament');
+      // 1 (or null/undefined for legacy events pre-migration) → visible; 0 → hidden
+      setJmShowMulligans(d.event.jm_show_mulligans === 0 ? false : true);
       try {
         const parsed = JSON.parse(d.event.enabled_games_json || '["stroke_play"]');
         setEnabledGames(Array.isArray(parsed) && parsed.length > 0 ? parsed : ['stroke_play']);
@@ -603,7 +606,11 @@ export default function EventDetail() {
 
   const saveGameSettings = async () => {
     try {
-      await api.updateGameSettings(eventId, { event_type: eventType, enabled_games: enabledGames });
+      await api.updateGameSettings(eventId, {
+        event_type: eventType,
+        enabled_games: enabledGames,
+        jm_show_mulligans: jmShowMulligans,
+      });
       showToast('Game settings saved');
       load();
     } catch (e) { showToast('Error: ' + e.message); }
@@ -769,6 +776,26 @@ export default function EventDetail() {
             ))}
           </div>
         </div>
+
+        {enabledGames.includes('jeff_martin') && (
+          <div className="jm-options" style={{ marginBottom: '1rem' }}>
+            <div className="jm-options-label">🎖️ Jeff Martin options</div>
+            <label className="jm-options-toggle">
+              <input
+                type="checkbox"
+                checked={jmShowMulligans}
+                onChange={(e) => setJmShowMulligans(e.target.checked)}
+              />
+              <span>Show mulligan tracker on scorecard pages</span>
+              <span className="jm-options-hint">
+                {jmShowMulligans
+                  ? 'Scorers can log mulligans per player from the score-entry page.'
+                  : 'Mulligans become honor-system only — the rule is still listed in the rules card, but no widget appears.'}
+              </span>
+            </label>
+          </div>
+        )}
+
         <button className="btn btn-primary btn-sm" onClick={saveGameSettings}>Save Game Settings</button>
 
         {hasBBB && (

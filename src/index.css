@@ -805,6 +805,43 @@ td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--slate-100); vertic
   color: var(--green-900);
 }
 
+/* Jeff Martin options panel in EventDetail game settings */
+.jm-options {
+  background: var(--sand-50);
+  border: 1px solid var(--sand-200);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  margin-top: 0.75rem;
+}
+.jm-options-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--green-900);
+  margin-bottom: 0.5rem;
+}
+.jm-options-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: 0.6rem;
+  row-gap: 0.15rem;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: var(--slate-800);
+}
+.jm-options-toggle input[type="checkbox"] {
+  margin-top: 0.2rem;
+  grid-row: span 2;
+}
+.jm-options-hint {
+  grid-column: 2;
+  font-size: 0.78rem;
+  color: var(--slate-500);
+  font-style: italic;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    LANDING PAGE — boutique clubhouse aesthetic
    Deep forest greens, cream, warm gold, serif editorial headlines

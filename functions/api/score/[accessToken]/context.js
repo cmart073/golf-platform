@@ -12,7 +12,7 @@ export async function onRequestGet(context) {
   if (!team) return err('Invalid access token', 404);
 
   const event = await db.prepare(
-    'SELECT id, name, holes, status, locked_at, date, event_type, enabled_games_json FROM events WHERE id = ?'
+    'SELECT id, name, holes, status, locked_at, date, event_type, enabled_games_json, jm_show_mulligans FROM events WHERE id = ?'
   ).bind(team.event_id).first();
 
   if (!event) return err('Event not found', 404);
@@ -76,6 +76,7 @@ export async function onRequestGet(context) {
       date: event.date,
       event_type: event.event_type,
       enabled_games: enabledGames,
+      jm_show_mulligans: event.jm_show_mulligans !== 0,
     },
     pars: eventHoles.reduce((acc, h) => { acc[h.hole_number] = h.par; return acc; }, {}),
     scores: scoresMap,
