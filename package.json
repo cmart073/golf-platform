@@ -8,8 +8,8 @@
     "build": "vite build",
     "preview": "wrangler pages dev dist",
     "dev:full": "vite build && wrangler pages dev dist --d1=DB",
-    "migrate:local": "wrangler d1 execute golf-db --local --file=migrations/0001_schema.sql && wrangler d1 execute golf-db --local --file=migrations/0002_seed.sql && wrangler d1 execute golf-db --local --file=migrations/0003_team_lock.sql && wrangler d1 execute golf-db --local --file=migrations/0004_weekly_games.sql",
-    "migrate:remote": "wrangler d1 execute golf-db --remote --file=migrations/0001_schema.sql && wrangler d1 execute golf-db --remote --file=migrations/0002_seed.sql && wrangler d1 execute golf-db --remote --file=migrations/0003_team_lock.sql && wrangler d1 execute golf-db --remote --file=migrations/0004_weekly_games.sql",
+    "migrate:local": "node scripts/migrate.mjs --local",
+    "migrate:remote": "node scripts/migrate.mjs --remote",
     "deploy": "vite build && wrangler pages deploy dist"
   },
   "dependencies": {
