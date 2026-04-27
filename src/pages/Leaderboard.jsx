@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { useLivePoll, formatRelativeAgo } from '../hooks/useLivePoll';
 
 function formatToPar(val) {
   if (val === 0) return 'E';
@@ -51,62 +52,55 @@ function RankBadge({ rank }) {
 
 export default function Leaderboard() {
   const { orgSlug, eventSlug } = useParams();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [lastFetch, setLastFetch] = useState(null);
   const [recentlyUpdated, setRecentlyUpdated] = useState(new Set());
   const prevTeamsRef = useRef(null);
 
-  const fetchData = async () => {
-    try {
-      const d = await api.getLeaderboard(orgSlug, eventSlug);
-      if (prevTeamsRef.current) {
-        const prevMap = {};
-        prevTeamsRef.current.forEach(t => { prevMap[t.id] = t; });
-        const updated = new Set();
-        d.teams.forEach(t => {
-          const prev = prevMap[t.id];
-          if (prev && (prev.strokes_completed !== t.strokes_completed || prev.to_par !== t.to_par)) {
-            updated.add(t.id);
-          }
-        });
-        if (updated.size > 0) {
-          setRecentlyUpdated(updated);
-          setTimeout(() => setRecentlyUpdated(new Set()), 3000);
+  const fetcher = useCallback(async () => {
+    const d = await api.getLeaderboard(orgSlug, eventSlug);
+    if (prevTeamsRef.current) {
+      const prevMap = {};
+      prevTeamsRef.current.forEach(t => { prevMap[t.id] = t; });
+      const updated = new Set();
+      d.teams.forEach(t => {
+        const prev = prevMap[t.id];
+        if (prev && (prev.strokes_completed !== t.strokes_completed || prev.to_par !== t.to_par)) {
+          updated.add(t.id);
         }
+      });
+      if (updated.size > 0) {
+        setRecentlyUpdated(updated);
+        setTimeout(() => setRecentlyUpdated(new Set()), 3000);
       }
-      prevTeamsRef.current = d.teams;
-      setData(d);
-      setLastFetch(new Date());
-      setError('');
-    } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
+    }
+    prevTeamsRef.current = d.teams;
+    return d;
   }, [orgSlug, eventSlug]);
 
+  const { data, error, loading, lastSuccessAt, isStale, isOffline, refresh } = useLivePoll(fetcher);
+
   if (loading) return <div className="page-shell"><div className="loading">Loading leaderboard...</div></div>;
-  if (error) return <div className="page-shell"><div className="card" style={{ color: 'var(--red-500)' }}>{error}</div></div>;
+  if (error && !data) return <div className="page-shell"><div className="card" style={{ color: 'var(--red-500)' }}>{error.message || String(error)}</div></div>;
   if (!data) return null;
 
-  const { event, teams, totals, hidden, org, game_results } = data;
+  const { event, teams, totals, hidden, org, game_results, branding } = data;
   const isLive = event.status === 'live';
   const isCompleted = event.status === 'completed';
   const isWeeklyMatch = event.event_type === 'weekly_match';
   const enabledGames = event.enabled_games || [];
   const jmEnabled = enabledGames.includes('jeff_martin');
   const hasGameResults = game_results && Object.keys(game_results).length > 0;
+  const brandColor = branding?.brand_color || null;
+  const brandLogo = branding?.logo_url || null;
+  // Inline `--brand-color` so existing CSS that already uses var(--green-800,
+  // …) can be redirected per-event without a global stylesheet change.
+  const brandStyle = brandColor ? { '--brand-color': brandColor } : undefined;
 
   return (
-    <div className="page-shell" style={{ maxWidth: 800 }}>
+    <div className="page-shell" style={{ maxWidth: 800, ...brandStyle }}>
       <div className="lb-header">
-        {org && <div className="lb-org">{org.name}</div>}
-        <h1 className="lb-title">{event.name}</h1>
+        {brandLogo && <img src={brandLogo} alt="" style={{ maxHeight: 64, marginBottom: '0.5rem' }} />}
+        {org && <div className="lb-org" style={brandColor ? { color: brandColor } : undefined}>{org.name}</div>}
+        <h1 className="lb-title" style={brandColor ? { color: brandColor } : undefined}>{event.name}</h1>
         <div className="lb-meta">
           {event.date && <span>{event.date}</span>}
           <span>Par {totals.total_par}</span>
@@ -190,10 +184,15 @@ export default function Leaderboard() {
               </tbody>
             </table>
           </div>
-          {lastFetch && (
-            <div className="lb-footer">
-              Last updated {lastFetch.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}
-              {isLive && ' · Refreshing every 10s'}
+          {lastSuccessAt && (
+            <div className="lb-footer" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <span>Updated {formatRelativeAgo(lastSuccessAt)}</span>
+              {isLive && !isStale && !isOffline && <span style={{ color: 'var(--slate-500)' }}>· auto-refreshing</span>}
+              {isOffline && <span style={{ color: 'var(--red-600)' }}>· offline — paused</span>}
+              {isStale && !isOffline && (
+                <span style={{ color: 'var(--amber-600, #d97706)' }}>· data may be stale</span>
+              )}
+              <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={refresh}>↻ Refresh</button>
             </div>
           )}
 

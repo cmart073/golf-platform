@@ -988,6 +988,13 @@ export default function EventDetail() {
             <Link to={`/admin/event/${eventId}/audit`} className="btn btn-secondary btn-sm">
               📜 Audit Log
             </Link>
+            <a
+              href={`/api/admin/events/${eventId}/export?format=csv`}
+              className="btn btn-secondary btn-sm"
+              title="Download final results as CSV"
+            >
+              ⬇ Export CSV
+            </a>
           </div>
         </div>
 

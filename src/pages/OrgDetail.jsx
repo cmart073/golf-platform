@@ -228,6 +228,84 @@ function CreateEventForm({ orgId, courses, onCreated }) {
   );
 }
 
+function BrandingCard({ orgId }) {
+  const [org, setOrg] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [brandColor, setBrandColor] = useState('');
+
+  useEffect(() => {
+    api.getOrg(orgId).then((o) => {
+      setOrg(o);
+      setName(o.name || '');
+      setSlug(o.slug || '');
+      setLogoUrl(o.logo_url || '');
+      setBrandColor(o.brand_color || '');
+    }).catch((e) => setError(e.message)).finally(() => setLoading(false));
+  }, [orgId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await api.patchOrg(orgId, {
+        name, slug,
+        logo_url: logoUrl || null,
+        brand_color: brandColor || null,
+      });
+      setOrg(res.org);
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  if (loading) return <div className="card"><div className="loading">Loading…</div></div>;
+
+  return (
+    <div className="card">
+      <h2 style={{ margin: 0, marginBottom: '0.75rem' }}>🎨 Branding</h2>
+      <p style={{ color: 'var(--slate-500)', fontSize: '0.85rem', marginTop: 0 }}>
+        Logo and brand color appear on the public leaderboard, TV mode, and scorer pages.
+        Per-event branding overrides can be set on the event itself.
+      </p>
+      {error && <div style={{ color: 'var(--red-500)', marginBottom: '0.5rem' }}>{error}</div>}
+      <div className="form-row">
+        <div className="form-group">
+          <label>Name *</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label>Slug *</label>
+          <input value={slug} onChange={(e) => setSlug(e.target.value)} />
+        </div>
+      </div>
+      <div className="form-group">
+        <label>Logo URL</label>
+        <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" />
+        {logoUrl && (
+          <div style={{ marginTop: '0.5rem' }}>
+            <img src={logoUrl} alt="Logo preview" style={{ maxHeight: 64, maxWidth: 240, border: '1px solid var(--slate-200)', padding: 4, borderRadius: 6, background: 'white' }} />
+          </div>
+        )}
+      </div>
+      <div className="form-group">
+        <label>Brand color</label>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <input type="color" value={brandColor || '#14532d'} onChange={(e) => setBrandColor(e.target.value)} style={{ width: 56, height: 36, padding: 0, border: '1px solid var(--slate-200)', borderRadius: 6 }} />
+          <input value={brandColor} onChange={(e) => setBrandColor(e.target.value)} placeholder="#14532d" />
+          {brandColor && <button className="btn btn-sm btn-secondary" onClick={() => setBrandColor('')}>Clear</button>}
+        </div>
+      </div>
+      <button className="btn btn-primary" onClick={handleSave} disabled={saving || !name.trim() || !slug.trim()}>
+        {saving ? 'Saving…' : 'Save branding'}
+      </button>
+    </div>
+  );
+}
+
 function CloneEventModal({ source, onClose, onCloned }) {
   const todayPlus1 = (() => {
     const d = new Date();
@@ -340,6 +418,11 @@ export default function OrgDetail() {
       <div className="breadcrumb"><Link to="/admin">Admin</Link> / Organization</div>
       <div className="page-header">
         <h1>Organization</h1>
+      </div>
+
+      {/* Branding */}
+      <div className="card-section">
+        <BrandingCard orgId={orgId} />
       </div>
 
       {/* Courses */}

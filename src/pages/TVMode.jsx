@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { useLivePoll } from '../hooks/useLivePoll';
 
 function formatToPar(val) {
   if (val === 0) return 'E';
@@ -9,52 +10,37 @@ function formatToPar(val) {
 
 export default function TVMode() {
   const { orgSlug, eventSlug } = useParams();
-  const [data, setData] = useState(null);
-  const [sponsors, setSponsors] = useState([]);
   const [activeSponsor, setActiveSponsor] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [recentlyUpdated, setRecentlyUpdated] = useState(new Set());
   const prevTeamsRef = useRef(null);
 
-  const fetchData = async () => {
-    try {
-      const [lb, sp] = await Promise.all([
-        api.getLeaderboard(orgSlug, eventSlug),
-        api.getPublicSponsors(orgSlug, eventSlug).catch(() => []),
-      ]);
-
-      // Track changes
-      if (prevTeamsRef.current) {
-        const prevMap = {};
-        prevTeamsRef.current.forEach(t => { prevMap[t.id] = t; });
-        const updated = new Set();
-        lb.teams.forEach(t => {
-          const prev = prevMap[t.id];
-          if (prev && (prev.strokes_completed !== t.strokes_completed || prev.to_par !== t.to_par)) {
-            updated.add(t.id);
-          }
-        });
-        if (updated.size > 0) {
-          setRecentlyUpdated(updated);
-          setTimeout(() => setRecentlyUpdated(new Set()), 3000);
+  const fetcher = useCallback(async () => {
+    const [lb, sp] = await Promise.all([
+      api.getLeaderboard(orgSlug, eventSlug),
+      api.getPublicSponsors(orgSlug, eventSlug).catch(() => []),
+    ]);
+    if (prevTeamsRef.current) {
+      const prevMap = {};
+      prevTeamsRef.current.forEach(t => { prevMap[t.id] = t; });
+      const updated = new Set();
+      lb.teams.forEach(t => {
+        const prev = prevMap[t.id];
+        if (prev && (prev.strokes_completed !== t.strokes_completed || prev.to_par !== t.to_par)) {
+          updated.add(t.id);
         }
+      });
+      if (updated.size > 0) {
+        setRecentlyUpdated(updated);
+        setTimeout(() => setRecentlyUpdated(new Set()), 3000);
       }
-      prevTeamsRef.current = lb.teams;
-
-      setData(lb);
-      setSponsors(sp);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
+    prevTeamsRef.current = lb.teams;
+    return { lb, sponsors: sp };
   }, [orgSlug, eventSlug]);
+
+  const { data: bundle, loading, isStale, isOffline } = useLivePoll(fetcher);
+  const data = bundle?.lb;
+  const sponsors = bundle?.sponsors || [];
 
   // Sponsor rotation
   useEffect(() => {
@@ -74,20 +60,25 @@ export default function TVMode() {
   }
 
   if (!data) return null;
-  const { event, teams, totals, hidden, org } = data;
+  const { event, teams, totals, hidden, org, branding } = data;
   const isLive = event.status === 'live';
   const isCompleted = event.status === 'completed';
+  const brandColor = branding?.brand_color || null;
+  const brandLogo = branding?.logo_url || null;
 
   return (
-    <div className="tv-container">
+    <div className="tv-container" style={brandColor ? { '--brand-color': brandColor } : undefined}>
       {/* Header */}
       <div className="tv-header">
-        <div className="tv-header-left">
-          <div className="tv-event-name">{event.name}</div>
-          <div className="tv-event-meta">
-            {org && <span>{org.name}</span>}
-            {event.date && <span>{event.date}</span>}
-            <span>Par {totals.total_par}</span>
+        <div className="tv-header-left" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {brandLogo && <img src={brandLogo} alt="" style={{ height: 64 }} />}
+          <div>
+            <div className="tv-event-name" style={brandColor ? { color: brandColor } : undefined}>{event.name}</div>
+            <div className="tv-event-meta">
+              {org && <span>{org.name}</span>}
+              {event.date && <span>{event.date}</span>}
+              <span>Par {totals.total_par}</span>
+            </div>
           </div>
         </div>
         <div className="tv-header-right">
@@ -152,9 +143,11 @@ export default function TVMode() {
         </div>
       )}
 
-      {/* Clock */}
+      {/* Clock + connection status */}
       <div className="tv-clock">
         {new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+        {isOffline && <span style={{ marginLeft: 16, color: '#fb7185', fontSize: '0.7em' }}>● OFFLINE</span>}
+        {!isOffline && isStale && <span style={{ marginLeft: 16, color: '#fbbf24', fontSize: '0.7em' }}>● STALE</span>}
       </div>
     </div>
   );

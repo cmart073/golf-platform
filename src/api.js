@@ -25,7 +25,9 @@ async function request(path, options = {}) {
 export const api = {
   // Admin - Orgs
   getOrgs: () => request('/api/admin/orgs'),
+  getOrg: (orgId) => request(`/api/admin/orgs/${orgId}`),
   createOrg: (body) => request('/api/admin/orgs', { method: 'POST', body: JSON.stringify(body) }),
+  patchOrg: (orgId, body) => request(`/api/admin/orgs/${orgId}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Admin - Courses
   getCourses: (orgId) => request(`/api/admin/orgs/${orgId}/courses`),
