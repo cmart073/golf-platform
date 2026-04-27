@@ -228,6 +228,75 @@ function CreateEventForm({ orgId, courses, onCreated }) {
   );
 }
 
+function CloneEventModal({ source, onClose, onCloned }) {
+  const todayPlus1 = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const [name, setName] = useState(source.name);
+  const [slug, setSlug] = useState((source.slug || '').replace(/-?\d{4}.*$/, '') + '-' + new Date().getFullYear());
+  const [date, setDate] = useState(todayPlus1);
+  const [copySponsors, setCopySponsors] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    if (!slug.trim()) { setError('Slug is required'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const cloned = await api.cloneEvent(source.id, {
+        name,
+        slug,
+        date: date || null,
+        copy_sponsors: copySponsors,
+      });
+      onCloned(cloned);
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>Clone Event</h2>
+        <p style={{ color: 'var(--slate-500)', fontSize: '0.9rem', marginTop: '-0.5rem' }}>
+          Cloning <strong>{source.name}</strong>. Teams, scores, and tokens are not copied — only the configuration.
+        </p>
+        {error && <div style={{ color: 'var(--red-500)', marginBottom: '0.75rem', fontSize: '0.9rem' }}>{error}</div>}
+        <div className="form-group">
+          <label>Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label>Slug *</label>
+          <input value={slug} onChange={(e) => setSlug(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label>Date</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', marginBottom: '1rem' }}>
+          <input type="checkbox" checked={copySponsors} onChange={(e) => setCopySponsors(e.target.checked)} />
+          Also copy sponsors
+        </label>
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Cloning...' : 'Clone Event'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OrgDetail() {
   const { orgId } = useParams();
   const [courses, setCourses] = useState([]);
@@ -235,6 +304,7 @@ export default function OrgDetail() {
   const [loading, setLoading] = useState(true);
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [deleting, setDeleting] = useState(null);
+  const [cloneSource, setCloneSource] = useState(null);
 
   const load = async () => {
     try {
@@ -302,7 +372,10 @@ export default function OrgDetail() {
       {/* Events */}
       <div className="card-section">
         <div className="card">
-          <h2>&#127942; Events</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{ margin: 0 }}>&#127942; Events</h2>
+            <Link to={`/admin/wizard?org=${orgId}`} className="btn btn-primary btn-sm">+ New Event (Wizard)</Link>
+          </div>
           {events.length === 0 ? (
             <div className="empty-state">No events yet.</div>
           ) : (
@@ -318,6 +391,13 @@ export default function OrgDetail() {
                       <td><span className={`badge badge-${e.status}`}>{e.status}</span></td>
                       <td style={{ display: 'flex', gap: '0.5rem' }}>
                         <Link to={`/admin/event/${e.id}`} className="btn btn-secondary btn-sm">Manage</Link>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setCloneSource(e)}
+                          title="Clone this event's configuration into a new draft"
+                        >
+                          Clone
+                        </button>
                         <button
                           className="btn btn-sm"
                           style={{ background: 'var(--red-100, #fee2e2)', color: 'var(--red-600, #dc2626)', border: 'none' }}
@@ -342,6 +422,14 @@ export default function OrgDetail() {
           orgId={orgId}
           onClose={() => setShowCourseModal(false)}
           onCreated={(c) => setCourses([...courses, c])}
+        />
+      )}
+
+      {cloneSource && (
+        <CloneEventModal
+          source={cloneSource}
+          onClose={() => setCloneSource(null)}
+          onCloned={(cloned) => setEvents([cloned, ...events])}
         />
       )}
     </div>

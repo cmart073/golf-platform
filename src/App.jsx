@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import AdminHome from './pages/AdminHome';
 import OrgDetail from './pages/OrgDetail';
 import EventDetail from './pages/EventDetail';
+import EventWizard from './pages/EventWizard';
 import QRPack from './pages/QRPack';
 import ScoreEntry from './pages/ScoreEntry';
 import MatchScorer from './pages/MatchScorer';
@@ -42,6 +43,7 @@ export default function App() {
         {/* Admin routes — admin nav */}
         <Route path="/admin" element={<><AdminBar /><AdminHome /></>} />
         <Route path="/admin/org/:orgId" element={<><AdminBar /><OrgDetail /></>} />
+        <Route path="/admin/wizard" element={<><AdminBar /><EventWizard /></>} />
         <Route path="/admin/event/:eventId" element={<><AdminBar /><EventDetail /></>} />
         <Route path="/admin/event/:eventId/qr-pack" element={<><AdminBar /><QRPack /></>} />
 

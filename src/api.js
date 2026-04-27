@@ -41,6 +41,14 @@ export const api = {
   setLeaderboardVisibility: (eventId, visible) => request(`/api/admin/events/${eventId}/leaderboard-visibility`, { method: 'POST', body: JSON.stringify({ visible }) }),
   updateGameSettings: (eventId, body) => request(`/api/admin/events/${eventId}/game-settings`, { method: 'POST', body: JSON.stringify(body) }),
   setGamePoint: (eventId, body) => request(`/api/admin/events/${eventId}/game-points`, { method: 'POST', body: JSON.stringify(body) }),
+  cloneEvent: (eventId, body) => request(`/api/admin/events/${eventId}/clone`, { method: 'POST', body: JSON.stringify(body) }),
+  patchEvent: (eventId, body) => request(`/api/admin/events/${eventId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getFormats: (selectedGames) => {
+    const qs = selectedGames && selectedGames.length > 0
+      ? `?games=${encodeURIComponent(selectedGames.join(','))}`
+      : '';
+    return request(`/api/admin/formats${qs}`);
+  },
 
   // Admin - Teams (God mode)
   addTeam: (eventId, body) => request(`/api/admin/events/${eventId}/teams`, { method: 'POST', body: JSON.stringify(body) }),

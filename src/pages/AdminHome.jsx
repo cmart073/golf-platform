@@ -43,9 +43,12 @@ export default function AdminHome() {
     <div className="page-shell">
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Organizations</h1>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowForm(f => !f)}>
-          {showForm ? 'Cancel' : '+ New Org'}
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Link to="/admin/wizard" className="btn btn-primary btn-sm">+ New Event (Wizard)</Link>
+          <button className="btn btn-secondary btn-sm" onClick={() => setShowForm(f => !f)}>
+            {showForm ? 'Cancel' : '+ New Org'}
+          </button>
+        </div>
       </div>
 
       {showForm && (
