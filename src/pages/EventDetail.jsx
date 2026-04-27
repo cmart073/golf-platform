@@ -187,6 +187,15 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
     finally { setUnlocking(false); }
   };
 
+  const handleRegenToken = async () => {
+    if (!confirm(`Regenerate the scorecard link for ${team.team_name}? The current link will stop working immediately.`)) return;
+    try {
+      await api.regenTeamToken(eventId, team.id);
+      showToast(`${team.team_name} token regenerated`);
+      onUpdate();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const scoreUrl = `${origin}/score/${team.access_token}`;
 
@@ -226,6 +235,9 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
             <a href={scoreUrl} target="_blank" rel="noopener" className="btn btn-sm btn-secondary">
               📱 Open Score Page
             </a>
+            <button className="btn btn-sm btn-secondary" onClick={handleRegenToken} title="Issue a new scorecard link; the old one stops working">
+              ↻ New link
+            </button>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <QRCodeSVG value={scoreUrl} size={36} level="M" />
               <code style={{ fontSize: '0.65rem', color: 'var(--slate-400)' }}>{team.access_token.slice(0, 8)}</code>
@@ -735,7 +747,28 @@ export default function EventDetail() {
               <button className="copy-btn" onClick={() => { navigator.clipboard.writeText(`${origin}/match/${event.scorer_token}`); showToast('Scorer link copied!'); }}>
                 Copy
               </button>
+              <button
+                className="copy-btn"
+                onClick={async () => {
+                  if (!confirm('Regenerate the scorer link? The current link will stop working immediately.')) return;
+                  try {
+                    await api.regenScorerToken(eventId);
+                    showToast('Scorer token regenerated');
+                    load();
+                  } catch (e) { showToast('Error: ' + e.message); }
+                }}
+                title="Issue a new scorer link"
+              >
+                ↻ New
+              </button>
             </div>
+            {event.token_expires_at && (
+              <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: new Date(event.token_expires_at) < new Date() ? 'var(--red-600)' : 'var(--slate-500)' }}>
+                {new Date(event.token_expires_at) < new Date() ? '⚠ Expired ' : 'Expires '}
+                {new Date(event.token_expires_at).toLocaleString()}
+                {' · '}policy: <code>{event.token_policy || 'never'}</code>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -951,6 +984,9 @@ export default function EventDetail() {
             </button>
             <Link to={`/admin/event/${eventId}/qr-pack`} className="btn btn-secondary btn-sm">
               🖨 QR Pack
+            </Link>
+            <Link to={`/admin/event/${eventId}/audit`} className="btn btn-secondary btn-sm">
+              📜 Audit Log
             </Link>
           </div>
         </div>

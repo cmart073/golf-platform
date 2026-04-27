@@ -1,3 +1,5 @@
+import { tokenStateSnapshot } from '../../../../_tokens.js';
+
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function err(message, status = 400) { return json({ error: message }, status); }
 
@@ -10,10 +12,10 @@ export async function onRequestGet(context) {
   const db = context.env.DB;
   const scorerToken = context.params.scorerToken;
 
-  // Look up event by scorer_token
+  // Look up event by scorer_token. SELECT * so we pick up V2 columns
+  // (token_expires_at, token_policy) when migration 0009 is in place.
   const event = await db.prepare(
-    `SELECT id, name, date, holes, status, locked_at, enabled_games_json, event_type
-     FROM events WHERE scorer_token = ?`
+    `SELECT * FROM events WHERE scorer_token = ?`
   ).bind(scorerToken).first();
 
   if (!event) return err('Invalid scorer token', 404);
@@ -102,6 +104,7 @@ export async function onRequestGet(context) {
       locked_at: event.locked_at,
       enabled_games: enabledGames,
       event_type: event.event_type,
+      ...tokenStateSnapshot(event),
     },
     holes: eventHoles,
     teams: teams.map(t => ({

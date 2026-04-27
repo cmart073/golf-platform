@@ -43,6 +43,12 @@ export const api = {
   setGamePoint: (eventId, body) => request(`/api/admin/events/${eventId}/game-points`, { method: 'POST', body: JSON.stringify(body) }),
   cloneEvent: (eventId, body) => request(`/api/admin/events/${eventId}/clone`, { method: 'POST', body: JSON.stringify(body) }),
   patchEvent: (eventId, body) => request(`/api/admin/events/${eventId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getAuditLog: (eventId, params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString();
+    return request(`/api/admin/events/${eventId}/audit${qs ? '?' + qs : ''}`);
+  },
+  regenTeamToken: (eventId, teamId, body = {}) => request(`/api/admin/events/${eventId}/teams/${teamId}/regen-token`, { method: 'POST', body: JSON.stringify(body) }),
+  regenScorerToken: (eventId, body = {}) => request(`/api/admin/events/${eventId}/regen-scorer-token`, { method: 'POST', body: JSON.stringify(body) }),
   getFormats: (selectedGames) => {
     const qs = selectedGames && selectedGames.length > 0
       ? `?games=${encodeURIComponent(selectedGames.join(','))}`
