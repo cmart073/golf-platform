@@ -187,6 +187,15 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
     finally { setUnlocking(false); }
   };
 
+  const handleRegenToken = async () => {
+    if (!confirm(`Regenerate the scorecard link for ${team.team_name}? The current link will stop working immediately.`)) return;
+    try {
+      await api.regenTeamToken(eventId, team.id);
+      showToast(`${team.team_name} token regenerated`);
+      onUpdate();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const scoreUrl = `${origin}/score/${team.access_token}`;
 
@@ -226,6 +235,9 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
             <a href={scoreUrl} target="_blank" rel="noopener" className="btn btn-sm btn-secondary">
               📱 Open Score Page
             </a>
+            <button className="btn btn-sm btn-secondary" onClick={handleRegenToken} title="Issue a new scorecard link; the old one stops working">
+              ↻ New link
+            </button>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <QRCodeSVG value={scoreUrl} size={36} level="M" />
               <code style={{ fontSize: '0.65rem', color: 'var(--slate-400)' }}>{team.access_token.slice(0, 8)}</code>
@@ -489,6 +501,8 @@ export default function EventDetail() {
   const [toast, setToast] = useState('');
   const [gameResults, setGameResults] = useState({});
   const [eventType, setEventType] = useState('tournament');
+  const [scoringMode, setScoringMode] = useState('distributed');
+  const [scoringModeMeta, setScoringModeMeta] = useState({ inferred: 'distributed', canUseDistributed: true });
   const [enabledGames, setEnabledGames] = useState(['stroke_play']);
   const [jmShowMulligans, setJmShowMulligans] = useState(true);
   const [gamePointTeam, setGamePointTeam] = useState('');
@@ -532,6 +546,10 @@ export default function EventDetail() {
       setEventType(d.event.event_type || 'tournament');
       // 1 (or null/undefined for legacy events pre-migration) → visible; 0 → hidden
       setJmShowMulligans(d.event.jm_show_mulligans === 0 ? false : true);
+      setScoringMode(
+        d.event.scoring_mode
+          || (d.event.event_type === 'weekly_match' ? 'single' : 'distributed'),
+      );
       try {
         const parsed = JSON.parse(d.event.enabled_games_json || '["stroke_play"]');
         setEnabledGames(Array.isArray(parsed) && parsed.length > 0 ? parsed : ['stroke_play']);
@@ -607,14 +625,33 @@ export default function EventDetail() {
   const saveGameSettings = async () => {
     try {
       await api.updateGameSettings(eventId, {
-        event_type: eventType,
+        // event_type stays in sync with scoring_mode for V1 read paths.
+        event_type: scoringMode === 'single' ? 'weekly_match' : 'tournament',
         enabled_games: enabledGames,
         jm_show_mulligans: jmShowMulligans,
+        scoring_mode: scoringMode,
       });
       showToast('Game settings saved');
       load();
     } catch (e) { showToast('Error: ' + e.message); }
   };
+
+  // Fetch the inferred scoring mode + capability flag whenever the format
+  // mix changes so the toggle can disable Distributed when it's not
+  // supported (e.g. wolf).
+  useEffect(() => {
+    if (enabledGames.length === 0) return;
+    api.getFormats(enabledGames).then((res) => {
+      setScoringModeMeta({
+        inferred: res.inferred_scoring_mode || 'distributed',
+        canUseDistributed: res.can_use_distributed !== false,
+      });
+      // Auto-snap if the current mode is no longer valid for the new mix.
+      if (res.can_use_distributed === false && scoringMode === 'distributed') {
+        setScoringMode('single');
+      }
+    }).catch(() => {});
+  }, [enabledGames.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveGamePoint = async () => {
     if (!gamePointTeam) { showToast('Choose a team'); return; }
@@ -735,21 +772,69 @@ export default function EventDetail() {
               <button className="copy-btn" onClick={() => { navigator.clipboard.writeText(`${origin}/match/${event.scorer_token}`); showToast('Scorer link copied!'); }}>
                 Copy
               </button>
+              <button
+                className="copy-btn"
+                onClick={async () => {
+                  if (!confirm('Regenerate the scorer link? The current link will stop working immediately.')) return;
+                  try {
+                    await api.regenScorerToken(eventId);
+                    showToast('Scorer token regenerated');
+                    load();
+                  } catch (e) { showToast('Error: ' + e.message); }
+                }}
+                title="Issue a new scorer link"
+              >
+                ↻ New
+              </button>
             </div>
+            {event.token_expires_at && (
+              <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: new Date(event.token_expires_at) < new Date() ? 'var(--red-600)' : 'var(--slate-500)' }}>
+                {new Date(event.token_expires_at) < new Date() ? '⚠ Expired ' : 'Expires '}
+                {new Date(event.token_expires_at).toLocaleString()}
+                {' · '}policy: <code>{event.token_policy || 'never'}</code>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Weekly Match / Game Settings */}
       <div className="card god-card" style={{ marginBottom: '1.5rem' }}>
-        <h2>🎮 Weekly Match Games</h2>
-        <div className="form-row">
-          <div className="form-group">
-            <label>Mode</label>
-            <select value={eventType} onChange={(e) => setEventType(e.target.value)}>
-              <option value="tournament">Tournament</option>
-              <option value="weekly_match">Weekly Match</option>
-            </select>
+        <h2>🎮 Game settings</h2>
+        <div className="form-group">
+          <label>Scoring mode</label>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <label style={{
+              flex: '1 1 220px', padding: '0.6rem', border: '1px solid var(--slate-200)', borderRadius: 6,
+              background: scoringMode === 'single' ? 'var(--green-50, #f0fdf4)' : 'white', cursor: 'pointer',
+            }}>
+              <input type="radio" checked={scoringMode === 'single'} onChange={() => setScoringMode('single')} />
+              <strong style={{ marginLeft: 6 }}>Single scorer</strong>
+              <div style={{ fontSize: '0.85rem', color: 'var(--slate-500)' }}>
+                One link, one person enters every score for the group.
+              </div>
+            </label>
+            <label style={{
+              flex: '1 1 220px', padding: '0.6rem', border: '1px solid var(--slate-200)', borderRadius: 6,
+              background: scoringMode === 'distributed' ? 'var(--green-50, #f0fdf4)' : 'white',
+              cursor: scoringModeMeta.canUseDistributed ? 'pointer' : 'not-allowed',
+              opacity: scoringModeMeta.canUseDistributed ? 1 : 0.5,
+            }}>
+              <input
+                type="radio"
+                checked={scoringMode === 'distributed'}
+                disabled={!scoringModeMeta.canUseDistributed}
+                onChange={() => setScoringMode('distributed')}
+              />
+              <strong style={{ marginLeft: 6 }}>Distributed</strong>
+              <div style={{ fontSize: '0.85rem', color: 'var(--slate-500)' }}>
+                Each team's link enters their own scores.
+                {!scoringModeMeta.canUseDistributed && <em> Not supported by current games.</em>}
+              </div>
+            </label>
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--slate-500)', marginTop: '0.4rem' }}>
+            Suggested: <strong>{scoringModeMeta.inferred}</strong>
           </div>
         </div>
         <div className="form-group">
@@ -951,6 +1036,23 @@ export default function EventDetail() {
             </button>
             <Link to={`/admin/event/${eventId}/qr-pack`} className="btn btn-secondary btn-sm">
               🖨 QR Pack
+            </Link>
+            <Link to={`/admin/event/${eventId}/audit`} className="btn btn-secondary btn-sm">
+              📜 Audit Log
+            </Link>
+            <a
+              href={`/api/admin/events/${eventId}/export?format=csv`}
+              className="btn btn-secondary btn-sm"
+              title="Download final results as CSV"
+            >
+              ⬇ Export CSV
+            </a>
+            <Link
+              to={`/admin/event/${eventId}/print`}
+              className="btn btn-secondary btn-sm"
+              title="Open the print-friendly results page (use Save as PDF)"
+            >
+              🖨 Print / PDF
             </Link>
           </div>
         </div>

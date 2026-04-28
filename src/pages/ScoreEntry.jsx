@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { submitTeamHole } from '../offline/scorer';
+import SyncStatusPill from '../components/SyncStatusPill';
 
 function ScoreDiff({ strokes, par }) {
   const diff = strokes - par;
@@ -88,9 +90,20 @@ export default function ScoreEntry() {
     if (isNaN(s) || s < 1 || s > 20) { showToast('Enter strokes 1–20'); return; }
     setSaving(true);
     try {
-      const result = await api.submitScore(accessToken, { hole_number: selectedHole, strokes: s });
-      setCtx(prev => ({ ...prev, scores: result.scores }));
-      showToast('Saved ✓');
+      const outcome = await submitTeamHole({ accessToken, hole_number: selectedHole, strokes: s });
+      if (outcome.queued) {
+        // Offline / network blip — apply optimistic update locally so the
+        // scorer keeps their flow. Sync worker will resolve in the
+        // background and the SyncStatusPill surfaces status.
+        setCtx((prev) => ({
+          ...prev,
+          scores: { ...(prev.scores || {}), [selectedHole]: { strokes: s, updated_at: new Date().toISOString(), pending: true } },
+        }));
+        showToast('Saved locally — will sync when online');
+      } else {
+        setCtx((prev) => ({ ...prev, scores: outcome.response.scores }));
+        showToast('Saved ✓');
+      }
 
       // Dismiss mobile keyboard — user just saved, they're not typing anymore.
       // (If the hole changes below via auto-advance, the focus effect will
@@ -212,6 +225,7 @@ export default function ScoreEntry() {
 
   return (
     <div className="score-page">
+      <SyncStatusPill />
       {/* Header */}
       <div className="score-header">
         <h1>{event.name}</h1>
@@ -264,6 +278,15 @@ export default function ScoreEntry() {
       {/* Locked: Event completed */}
       {isEventLocked && !isTeamLocked && (
         <div className="locked-banner">🔒 Event completed — Scores are final</div>
+      )}
+
+      {/* Single-scorer mode: this team-card link still works for read-only
+          checking but the canonical scoring happens elsewhere. */}
+      {event.scoring_mode === 'single' && !isLocked && (
+        <div className="locked-banner" style={{ background: '#fef3c7', borderColor: '#fbbf24' }}>
+          ⚠ This event uses <strong>single-scorer mode</strong>. Ask your organizer for the match-scorer link
+          if you need to enter scores. This view is read-only.
+        </div>
       )}
 
       {/* Not live */}

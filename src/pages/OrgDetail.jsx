@@ -228,6 +228,153 @@ function CreateEventForm({ orgId, courses, onCreated }) {
   );
 }
 
+function BrandingCard({ orgId }) {
+  const [org, setOrg] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [brandColor, setBrandColor] = useState('');
+
+  useEffect(() => {
+    api.getOrg(orgId).then((o) => {
+      setOrg(o);
+      setName(o.name || '');
+      setSlug(o.slug || '');
+      setLogoUrl(o.logo_url || '');
+      setBrandColor(o.brand_color || '');
+    }).catch((e) => setError(e.message)).finally(() => setLoading(false));
+  }, [orgId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await api.patchOrg(orgId, {
+        name, slug,
+        logo_url: logoUrl || null,
+        brand_color: brandColor || null,
+      });
+      setOrg(res.org);
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  if (loading) return <div className="card"><div className="loading">Loading…</div></div>;
+
+  return (
+    <div className="card">
+      <h2 style={{ margin: 0, marginBottom: '0.75rem' }}>🎨 Branding</h2>
+      <p style={{ color: 'var(--slate-500)', fontSize: '0.85rem', marginTop: 0 }}>
+        Logo and brand color appear on the public leaderboard, TV mode, and scorer pages.
+        Per-event branding overrides can be set on the event itself.
+      </p>
+      {error && <div style={{ color: 'var(--red-500)', marginBottom: '0.5rem' }}>{error}</div>}
+      <div className="form-row">
+        <div className="form-group">
+          <label>Name *</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label>Slug *</label>
+          <input value={slug} onChange={(e) => setSlug(e.target.value)} />
+        </div>
+      </div>
+      <div className="form-group">
+        <label>Logo URL</label>
+        <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" />
+        {logoUrl && (
+          <div style={{ marginTop: '0.5rem' }}>
+            <img src={logoUrl} alt="Logo preview" style={{ maxHeight: 64, maxWidth: 240, border: '1px solid var(--slate-200)', padding: 4, borderRadius: 6, background: 'white' }} />
+          </div>
+        )}
+      </div>
+      <div className="form-group">
+        <label>Brand color</label>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <input type="color" value={brandColor || '#14532d'} onChange={(e) => setBrandColor(e.target.value)} style={{ width: 56, height: 36, padding: 0, border: '1px solid var(--slate-200)', borderRadius: 6 }} />
+          <input value={brandColor} onChange={(e) => setBrandColor(e.target.value)} placeholder="#14532d" />
+          {brandColor && <button className="btn btn-sm btn-secondary" onClick={() => setBrandColor('')}>Clear</button>}
+        </div>
+      </div>
+      <button className="btn btn-primary" onClick={handleSave} disabled={saving || !name.trim() || !slug.trim()}>
+        {saving ? 'Saving…' : 'Save branding'}
+      </button>
+    </div>
+  );
+}
+
+function CloneEventModal({ source, onClose, onCloned }) {
+  const todayPlus1 = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const [name, setName] = useState(source.name);
+  const [slug, setSlug] = useState((source.slug || '').replace(/-?\d{4}.*$/, '') + '-' + new Date().getFullYear());
+  const [date, setDate] = useState(todayPlus1);
+  const [copySponsors, setCopySponsors] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    if (!slug.trim()) { setError('Slug is required'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const cloned = await api.cloneEvent(source.id, {
+        name,
+        slug,
+        date: date || null,
+        copy_sponsors: copySponsors,
+      });
+      onCloned(cloned);
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>Clone Event</h2>
+        <p style={{ color: 'var(--slate-500)', fontSize: '0.9rem', marginTop: '-0.5rem' }}>
+          Cloning <strong>{source.name}</strong>. Teams, scores, and tokens are not copied — only the configuration.
+        </p>
+        {error && <div style={{ color: 'var(--red-500)', marginBottom: '0.75rem', fontSize: '0.9rem' }}>{error}</div>}
+        <div className="form-group">
+          <label>Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label>Slug *</label>
+          <input value={slug} onChange={(e) => setSlug(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label>Date</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', marginBottom: '1rem' }}>
+          <input type="checkbox" checked={copySponsors} onChange={(e) => setCopySponsors(e.target.checked)} />
+          Also copy sponsors
+        </label>
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Cloning...' : 'Clone Event'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OrgDetail() {
   const { orgId } = useParams();
   const [courses, setCourses] = useState([]);
@@ -235,6 +382,7 @@ export default function OrgDetail() {
   const [loading, setLoading] = useState(true);
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [deleting, setDeleting] = useState(null);
+  const [cloneSource, setCloneSource] = useState(null);
 
   const load = async () => {
     try {
@@ -272,6 +420,11 @@ export default function OrgDetail() {
         <h1>Organization</h1>
       </div>
 
+      {/* Branding */}
+      <div className="card-section">
+        <BrandingCard orgId={orgId} />
+      </div>
+
       {/* Courses */}
       <div className="card-section">
         <div className="card">
@@ -302,7 +455,10 @@ export default function OrgDetail() {
       {/* Events */}
       <div className="card-section">
         <div className="card">
-          <h2>&#127942; Events</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{ margin: 0 }}>&#127942; Events</h2>
+            <Link to={`/admin/wizard?org=${orgId}`} className="btn btn-primary btn-sm">+ New Event (Wizard)</Link>
+          </div>
           {events.length === 0 ? (
             <div className="empty-state">No events yet.</div>
           ) : (
@@ -318,6 +474,13 @@ export default function OrgDetail() {
                       <td><span className={`badge badge-${e.status}`}>{e.status}</span></td>
                       <td style={{ display: 'flex', gap: '0.5rem' }}>
                         <Link to={`/admin/event/${e.id}`} className="btn btn-secondary btn-sm">Manage</Link>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setCloneSource(e)}
+                          title="Clone this event's configuration into a new draft"
+                        >
+                          Clone
+                        </button>
                         <button
                           className="btn btn-sm"
                           style={{ background: 'var(--red-100, #fee2e2)', color: 'var(--red-600, #dc2626)', border: 'none' }}
@@ -342,6 +505,14 @@ export default function OrgDetail() {
           orgId={orgId}
           onClose={() => setShowCourseModal(false)}
           onCreated={(c) => setCourses([...courses, c])}
+        />
+      )}
+
+      {cloneSource && (
+        <CloneEventModal
+          source={cloneSource}
+          onClose={() => setCloneSource(null)}
+          onCloned={(cloned) => setEvents([cloned, ...events])}
         />
       )}
     </div>

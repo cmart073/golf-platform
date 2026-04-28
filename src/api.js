@@ -25,7 +25,9 @@ async function request(path, options = {}) {
 export const api = {
   // Admin - Orgs
   getOrgs: () => request('/api/admin/orgs'),
+  getOrg: (orgId) => request(`/api/admin/orgs/${orgId}`),
   createOrg: (body) => request('/api/admin/orgs', { method: 'POST', body: JSON.stringify(body) }),
+  patchOrg: (orgId, body) => request(`/api/admin/orgs/${orgId}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Admin - Courses
   getCourses: (orgId) => request(`/api/admin/orgs/${orgId}/courses`),
@@ -41,6 +43,20 @@ export const api = {
   setLeaderboardVisibility: (eventId, visible) => request(`/api/admin/events/${eventId}/leaderboard-visibility`, { method: 'POST', body: JSON.stringify({ visible }) }),
   updateGameSettings: (eventId, body) => request(`/api/admin/events/${eventId}/game-settings`, { method: 'POST', body: JSON.stringify(body) }),
   setGamePoint: (eventId, body) => request(`/api/admin/events/${eventId}/game-points`, { method: 'POST', body: JSON.stringify(body) }),
+  cloneEvent: (eventId, body) => request(`/api/admin/events/${eventId}/clone`, { method: 'POST', body: JSON.stringify(body) }),
+  patchEvent: (eventId, body) => request(`/api/admin/events/${eventId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getAuditLog: (eventId, params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString();
+    return request(`/api/admin/events/${eventId}/audit${qs ? '?' + qs : ''}`);
+  },
+  regenTeamToken: (eventId, teamId, body = {}) => request(`/api/admin/events/${eventId}/teams/${teamId}/regen-token`, { method: 'POST', body: JSON.stringify(body) }),
+  regenScorerToken: (eventId, body = {}) => request(`/api/admin/events/${eventId}/regen-scorer-token`, { method: 'POST', body: JSON.stringify(body) }),
+  getFormats: (selectedGames) => {
+    const qs = selectedGames && selectedGames.length > 0
+      ? `?games=${encodeURIComponent(selectedGames.join(','))}`
+      : '';
+    return request(`/api/admin/formats${qs}`);
+  },
 
   // Admin - Teams (God mode)
   addTeam: (eventId, body) => request(`/api/admin/events/${eventId}/teams`, { method: 'POST', body: JSON.stringify(body) }),
@@ -72,6 +88,8 @@ export const api = {
   submitMatchBBB: (scorerToken, body) => request(`/api/score/match/${scorerToken}/bbb`, { method: 'POST', body: JSON.stringify(body) }),
   submitMatchWolf: (scorerToken, body) => request(`/api/score/match/${scorerToken}/wolf`, { method: 'POST', body: JSON.stringify(body) }),
   submitMatchPress: (scorerToken, body) => request(`/api/score/match/${scorerToken}/press`, { method: 'POST', body: JSON.stringify(body) }),
+  submitMatchYourHole: (scorerToken, body) => request(`/api/score/match/${scorerToken}/your-hole`, { method: 'POST', body: JSON.stringify(body) }),
+  submitMatchMulligan: (scorerToken, body) => request(`/api/score/match/${scorerToken}/mulligan`, { method: 'POST', body: JSON.stringify(body) }),
 
   // Admin - Bets (presses, multipliers, values)
   getBets: (eventId) => request(`/api/admin/events/${eventId}/bets`),

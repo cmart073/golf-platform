@@ -1,3 +1,5 @@
+import { isEventTokenExpired, tokenStateSnapshot } from '../../../_tokens.js';
+
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function err(message, status = 400) { return json({ error: message }, status); }
 
@@ -14,6 +16,7 @@ export async function onRequestGet(context) {
   const event = await db.prepare(
     'SELECT * FROM events WHERE id = ?'
   ).bind(team.event_id).first();
+  // SELECT * picks up scoring_mode/token_* whenever migration 0009 is in place.
 
   if (!event) return err('Event not found', 404);
 
@@ -77,7 +80,11 @@ export async function onRequestGet(context) {
       event_type: event.event_type,
       enabled_games: enabledGames,
       jm_show_mulligans: event.jm_show_mulligans == null ? true : event.jm_show_mulligans !== 0,
+      scoring_mode: event.scoring_mode
+        || (event.event_type === 'weekly_match' ? 'single' : 'distributed'),
+      ...tokenStateSnapshot(event),
     },
+    token_expired: isEventTokenExpired(event),
     pars: eventHoles.reduce((acc, h) => { acc[h.hole_number] = h.par; return acc; }, {}),
     scores: scoresMap,
     your_holes: yourHoles,

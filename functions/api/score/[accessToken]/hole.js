@@ -1,3 +1,6 @@
+import { logScoreChange } from '../../../_audit.js';
+import { isEventTokenExpired } from '../../../_tokens.js';
+
 function newId(prefix = '') { return prefix + crypto.randomUUID().replace(/-/g, '').slice(0, 20); }
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function err(message, status = 400) { return json({ error: message }, status); }
@@ -26,13 +29,19 @@ export async function onRequestPost(context) {
   }
 
   const event = await db.prepare(
-    'SELECT id, holes, status, locked_at FROM events WHERE id = ?'
+    'SELECT * FROM events WHERE id = ?'
   ).bind(team.event_id).first();
   if (!event) return err('Event not found', 404);
 
   // Check EVENT lock
   if (event.locked_at || event.status === 'completed') {
     return err('Event is locked — scores cannot be changed', 403);
+  }
+
+  // Check token expiry (V2). Pre-0009 events have token_expires_at undefined
+  // and isEventTokenExpired returns false, so legacy behavior is unchanged.
+  if (isEventTokenExpired(event)) {
+    return err('This scorecard link has expired. Ask your organizer for a new link.', 410);
   }
 
   // Check event is live
@@ -52,17 +61,36 @@ export async function onRequestPost(context) {
   const timestamp = now();
 
   const existing = await db.prepare(
-    'SELECT id FROM hole_scores WHERE team_id = ? AND hole_number = ?'
+    'SELECT id, strokes FROM hole_scores WHERE team_id = ? AND hole_number = ?'
   ).bind(team.id, holeNum).first();
 
   if (existing) {
-    await db.prepare(
-      'UPDATE hole_scores SET strokes = ?, updated_at = ?, updated_by = ? WHERE id = ?'
-    ).bind(strokesNum, timestamp, 'team', existing.id).run();
+    if (existing.strokes !== strokesNum) {
+      await db.prepare(
+        'UPDATE hole_scores SET strokes = ?, updated_at = ?, updated_by = ? WHERE id = ?'
+      ).bind(strokesNum, timestamp, 'team', existing.id).run();
+      await logScoreChange(db, {
+        event_id: event.id,
+        team_id: team.id,
+        hole_number: holeNum,
+        before_strokes: existing.strokes,
+        after_strokes: strokesNum,
+        actor: 'team',
+        action: 'update',
+      });
+    }
   } else {
     await db.prepare(
       'INSERT INTO hole_scores (id, team_id, hole_number, strokes, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(newId('hs_'), team.id, holeNum, strokesNum, timestamp, 'team').run();
+    await logScoreChange(db, {
+      event_id: event.id,
+      team_id: team.id,
+      hole_number: holeNum,
+      after_strokes: strokesNum,
+      actor: 'team',
+      action: 'create',
+    });
   }
 
   const { results: scores } = await db.prepare(

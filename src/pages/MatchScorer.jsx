@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { submitMatchHole as submitMatchHoleQueued } from '../offline/scorer';
+import SyncStatusPill from '../components/SyncStatusPill';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -310,11 +312,35 @@ export default function MatchScorer() {
   );
   if (!ctx) return null;
 
-  const { event, holes, teams, bbb: bbbByHole, wolf_picks: wolfPicks = [], presses = [], bet_config: betConfig = {} } = ctx;
+  const { event, holes, teams, bbb: bbbByHole, wolf_picks: wolfPicks = [], presses = [], bet_config: betConfig = {}, jm_show_mulligans: jmShowMulligans = true } = ctx;
   const enabledGames = event.enabled_games || ['stroke_play'];
   const hasBBB = enabledGames.includes('bingo') && enabledGames.includes('bango') && enabledGames.includes('bongo');
   const hasWolf = enabledGames.includes('wolf');
   const hasNassau = enabledGames.includes('nassau');
+  const hasJM = enabledGames.includes('jeff_martin');
+
+  const handleSetYourHole = async (teamId, playerIndex) => {
+    try {
+      await api.submitMatchYourHole(scorerToken, {
+        team_id: teamId,
+        hole_number: selectedHole,
+        player_index: playerIndex,
+      });
+      await load();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
+  const handleMulliganDelta = async (teamId, playerIndex, delta) => {
+    try {
+      await api.submitMatchMulligan(scorerToken, {
+        team_id: teamId,
+        player_index: playerIndex,
+        hole_number: selectedHole,
+        delta,
+      });
+      await load();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
   const isLocked = !!event.locked_at || event.status === 'completed';
   const isNotLive = event.status !== 'live' && event.status !== 'completed';
   const currentHolePar = holes.find(h => h.hole_number === selectedHole)?.par ?? 4;
@@ -366,9 +392,13 @@ export default function MatchScorer() {
     if (scores.length === 0) { showToast('Enter at least one score'); return; }
     setSaving(true);
     try {
-      await api.submitMatchHole(scorerToken, { hole_number: selectedHole, scores });
-      showToast(`Hole ${selectedHole} saved ✓`);
-      await load();
+      const outcome = await submitMatchHoleQueued({ scorerToken, hole_number: selectedHole, scores });
+      if (outcome.queued) {
+        showToast(`Hole ${selectedHole} saved locally — will sync when online`);
+      } else {
+        showToast(`Hole ${selectedHole} saved ✓`);
+        await load();
+      }
       // Auto-advance to next incomplete hole
       for (let i = 1; i <= holes.length; i++) {
         const nextHole = ((selectedHole - 1 + i) % holes.length) + 1;
@@ -401,6 +431,7 @@ export default function MatchScorer() {
 
   return (
     <div className="ms-page">
+      <SyncStatusPill />
       {/* Header */}
       <div className="ms-header">
         <div className="ms-header-left">
@@ -469,29 +500,66 @@ export default function MatchScorer() {
               const val = holeScores[t.id] ?? '';
               const strokes = parseInt(val);
               const diff = !isNaN(strokes) && strokes > 0 ? strokes - currentHolePar : null;
+              const yourHoleIdx = (t.your_holes || {})[selectedHole];
+              const teamMulligans = t.mulligans || {};
               return (
-                <div key={t.id} className="ms-score-row">
-                  <div className="ms-player-name">{t.team_name}</div>
-                  {t.handicap_strokes > 0 && (
-                    <div className="ms-hcp-badge">HCP {t.handicap_strokes}</div>
-                  )}
-                  <div className="ms-input-wrap">
-                    <input
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={val}
-                      onChange={e => setHoleScores(prev => ({ ...prev, [t.id]: e.target.value }))}
-                      onKeyDown={e => e.key === 'Enter' && handleSaveHole()}
-                      className="ms-score-input"
-                      placeholder="—"
-                    />
-                    {diff !== null && (
-                      <span className={`ms-score-diff ${diff < 0 ? 'under' : diff > 0 ? 'over' : 'even'}`}>
-                        {diff === 0 ? 'E' : diff > 0 ? `+${diff}` : diff}
-                      </span>
+                <div key={t.id} className="ms-score-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div className="ms-player-name">{t.team_name}</div>
+                    {t.handicap_strokes > 0 && (
+                      <div className="ms-hcp-badge">HCP {t.handicap_strokes}</div>
                     )}
+                    <div className="ms-input-wrap" style={{ marginLeft: 'auto' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={val}
+                        onChange={e => setHoleScores(prev => ({ ...prev, [t.id]: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && handleSaveHole()}
+                        className="ms-score-input"
+                        placeholder="—"
+                      />
+                      {diff !== null && (
+                        <span className={`ms-score-diff ${diff < 0 ? 'under' : diff > 0 ? 'over' : 'even'}`}>
+                          {diff === 0 ? 'E' : diff > 0 ? `+${diff}` : diff}
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  {hasJM && t.players && t.players.length > 0 && (
+                    <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
+                      <span style={{ color: 'var(--slate-500)' }}>Your hole:</span>
+                      {t.players.map((name, idx) => (
+                        <button
+                          key={idx}
+                          className={`btn btn-sm ${yourHoleIdx === idx ? 'btn-primary' : 'btn-secondary'}`}
+                          onClick={() => handleSetYourHole(t.id, yourHoleIdx === idx ? null : idx)}
+                        >
+                          {name || `P${idx + 1}`}
+                        </button>
+                      ))}
+                      {jmShowMulligans && t.players.length > 0 && (
+                        <details style={{ marginLeft: 'auto' }}>
+                          <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--slate-500)' }}>Mulligans</summary>
+                          <div style={{ marginTop: '0.3rem', display: 'grid', gap: '0.25rem' }}>
+                            {t.players.map((name, idx) => {
+                              const mc = teamMulligans[idx]?.used_count || 0;
+                              return (
+                                <div key={idx} style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.8rem' }}>
+                                  <span style={{ flex: 1 }}>{name || `P${idx + 1}`}</span>
+                                  <span style={{ color: 'var(--slate-500)' }}>{mc}</span>
+                                  <button className="btn btn-secondary btn-sm" onClick={() => handleMulliganDelta(t.id, idx, -1)} disabled={mc === 0}>−</button>
+                                  <button className="btn btn-secondary btn-sm" onClick={() => handleMulliganDelta(t.id, idx, +1)}>+</button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

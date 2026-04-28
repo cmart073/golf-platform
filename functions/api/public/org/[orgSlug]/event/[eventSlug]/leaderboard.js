@@ -14,14 +14,31 @@ export async function onRequestGet(context) {
   const db = context.env.DB;
   const { orgSlug, eventSlug } = context.params;
 
-  const org = await db.prepare('SELECT id, name FROM organizations WHERE slug = ?').bind(orgSlug).first();
+  const org = await db.prepare('SELECT id, name, slug, logo_url, brand_color FROM organizations WHERE slug = ?').bind(orgSlug).first();
   if (!org) return err('Organization not found', 404);
 
-  // Include event_type and enabled_games_json so computeGameResults works correctly
+  // SELECT * picks up V2 columns (branding_overrides_json, scoring_mode,
+  // token_*) when migration 0009 is in place; legacy DBs simply return
+  // undefined for those keys.
   const event = await db.prepare(
-    'SELECT id, name, date, holes, status, locked_at, leaderboard_visible, event_type, enabled_games_json FROM events WHERE org_id = ? AND slug = ?'
+    'SELECT * FROM events WHERE org_id = ? AND slug = ?'
   ).bind(org.id, eventSlug).first();
   if (!event) return err('Event not found', 404);
+
+  // Resolve effective branding by overlaying event-level overrides on org
+  // defaults. Both branches are safe with missing fields.
+  let brandingOverrides = null;
+  if (event.branding_overrides_json) {
+    try {
+      const parsed = JSON.parse(event.branding_overrides_json);
+      if (parsed && typeof parsed === 'object') brandingOverrides = parsed;
+    } catch { /* ignore malformed override JSON */ }
+  }
+  const branding = {
+    logo_url:    brandingOverrides?.logo_url    ?? org.logo_url    ?? null,
+    brand_color: brandingOverrides?.brand_color ?? org.brand_color ?? null,
+    org_name:    org.name,
+  };
 
   const { results: eventHoles } = await db.prepare(
     'SELECT hole_number, par FROM event_holes WHERE event_id = ? ORDER BY hole_number'
@@ -48,7 +65,8 @@ export async function onRequestGet(context) {
     return json({
       event: { name: event.name, date: event.date, holes: event.holes, status: event.status, leaderboard_visible: true },
       totals: { total_par: totalPar },
-      org: { name: org.name },
+      org: { name: org.name, slug: org.slug, logo_url: org.logo_url, brand_color: org.brand_color },
+    branding,
       teams: [],
       hidden: false,
     });
@@ -135,7 +153,8 @@ export async function onRequestGet(context) {
 
   return json({
     event: { name: event.name, date: event.date, holes: event.holes, status: event.status, leaderboard_visible: true, event_type: event.event_type, enabled_games: enabledGames },
-    org: { name: org.name },
+    org: { name: org.name, slug: org.slug, logo_url: org.logo_url, brand_color: org.brand_color },
+    branding,
     totals: { total_par: totalPar },
     teams: leaderboard,
     game_results,
