@@ -437,12 +437,39 @@ function Step5Teams({ data, setData, onBack, onNext }) {
     }).map((r) => r.team_name);
   }, [parsed]);
 
+  const handleFile = async (file) => {
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File is larger than 2MB. Trim it down first.');
+      return;
+    }
+    const text = await file.text();
+    setData({ ...data, teamsRaw: text });
+  };
+
   return (
     <div>
       <h2 style={{ marginTop: 0 }}>Teams</h2>
       <p style={{ color: 'var(--slate-500)', marginTop: 0 }}>
-        Paste from Google Sheets / Excel, or type one team per line as <code>Team Name, Player 1, Player 2, …</code>. A header row is fine — it'll be skipped.
+        Paste from Google Sheets / Excel, type rows directly, or upload a CSV. Format:{' '}
+        <code>Team Name, Player 1, Player 2, …</code>. A header row is fine — it's skipped.
       </p>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+          ⬆ Upload CSV
+          <input
+            type="file"
+            accept=".csv,text/csv,text/plain"
+            style={{ display: 'none' }}
+            onChange={(e) => handleFile(e.target.files?.[0])}
+          />
+        </label>
+        {data.teamsRaw && (
+          <button className="btn btn-secondary btn-sm" onClick={() => setData({ ...data, teamsRaw: '' })}>
+            Clear
+          </button>
+        )}
+      </div>
       <textarea
         value={data.teamsRaw}
         onChange={(e) => setData({ ...data, teamsRaw: e.target.value })}

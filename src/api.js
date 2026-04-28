@@ -88,6 +88,8 @@ export const api = {
   submitMatchBBB: (scorerToken, body) => request(`/api/score/match/${scorerToken}/bbb`, { method: 'POST', body: JSON.stringify(body) }),
   submitMatchWolf: (scorerToken, body) => request(`/api/score/match/${scorerToken}/wolf`, { method: 'POST', body: JSON.stringify(body) }),
   submitMatchPress: (scorerToken, body) => request(`/api/score/match/${scorerToken}/press`, { method: 'POST', body: JSON.stringify(body) }),
+  submitMatchYourHole: (scorerToken, body) => request(`/api/score/match/${scorerToken}/your-hole`, { method: 'POST', body: JSON.stringify(body) }),
+  submitMatchMulligan: (scorerToken, body) => request(`/api/score/match/${scorerToken}/mulligan`, { method: 'POST', body: JSON.stringify(body) }),
 
   // Admin - Bets (presses, multipliers, values)
   getBets: (eventId) => request(`/api/admin/events/${eventId}/bets`),

@@ -94,6 +94,34 @@ export async function onRequestGet(context) {
     betConfig = JSON.parse(ev?.bet_config_json || '{}');
   } catch {}
 
+  // Jeff Martin state (your_holes + mulligans), keyed by team_id, so a
+  // single scorer can manage every team. Tables may be absent on legacy DBs.
+  const yourHolesByTeam = {};
+  const mulligansByTeam = {};
+  if (enabledGames.includes('jeff_martin') && teamIds.length > 0) {
+    const placeholders = teamIds.map(() => '?').join(',');
+    try {
+      const { results: yh } = await db.prepare(
+        `SELECT team_id, hole_number, player_index FROM hole_your_holes WHERE team_id IN (${placeholders})`,
+      ).bind(...teamIds).all();
+      (yh || []).forEach((r) => {
+        yourHolesByTeam[r.team_id] = yourHolesByTeam[r.team_id] || {};
+        yourHolesByTeam[r.team_id][r.hole_number] = r.player_index;
+      });
+    } catch { /* table missing */ }
+    try {
+      const { results: muls } = await db.prepare(
+        `SELECT team_id, player_index, used_count, holes_used_json FROM team_mulligans WHERE team_id IN (${placeholders})`,
+      ).bind(...teamIds).all();
+      (muls || []).forEach((r) => {
+        let holes = [];
+        try { holes = JSON.parse(r.holes_used_json || '[]'); } catch { holes = []; }
+        mulligansByTeam[r.team_id] = mulligansByTeam[r.team_id] || {};
+        mulligansByTeam[r.team_id][r.player_index] = { used_count: r.used_count, holes_used: holes };
+      });
+    } catch { /* table missing */ }
+  }
+
   return json({
     event: {
       id: event.id,
@@ -113,10 +141,13 @@ export async function onRequestGet(context) {
       players: t.players_json ? JSON.parse(t.players_json) : [],
       handicap_strokes: t.handicap_strokes || 0,
       scores: scoreMaps[t.id],
+      your_holes: yourHolesByTeam[t.id] || {},
+      mulligans: mulligansByTeam[t.id] || {},
     })),
     bbb,
     wolf_picks: wolfPicks,
     presses,
     bet_config: betConfig,
+    jm_show_mulligans: event.jm_show_mulligans == null ? true : event.jm_show_mulligans !== 0,
   });
 }

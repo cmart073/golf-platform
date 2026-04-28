@@ -280,6 +280,15 @@ export default function ScoreEntry() {
         <div className="locked-banner">🔒 Event completed — Scores are final</div>
       )}
 
+      {/* Single-scorer mode: this team-card link still works for read-only
+          checking but the canonical scoring happens elsewhere. */}
+      {event.scoring_mode === 'single' && !isLocked && (
+        <div className="locked-banner" style={{ background: '#fef3c7', borderColor: '#fbbf24' }}>
+          ⚠ This event uses <strong>single-scorer mode</strong>. Ask your organizer for the match-scorer link
+          if you need to enter scores. This view is read-only.
+        </div>
+      )}
+
       {/* Not live */}
       {isNotLive && !isLocked && (
         <div className="locked-banner" style={{ background: 'var(--slate-100)', borderColor: 'var(--slate-200)' }}>

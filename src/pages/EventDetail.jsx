@@ -501,6 +501,8 @@ export default function EventDetail() {
   const [toast, setToast] = useState('');
   const [gameResults, setGameResults] = useState({});
   const [eventType, setEventType] = useState('tournament');
+  const [scoringMode, setScoringMode] = useState('distributed');
+  const [scoringModeMeta, setScoringModeMeta] = useState({ inferred: 'distributed', canUseDistributed: true });
   const [enabledGames, setEnabledGames] = useState(['stroke_play']);
   const [jmShowMulligans, setJmShowMulligans] = useState(true);
   const [gamePointTeam, setGamePointTeam] = useState('');
@@ -544,6 +546,10 @@ export default function EventDetail() {
       setEventType(d.event.event_type || 'tournament');
       // 1 (or null/undefined for legacy events pre-migration) → visible; 0 → hidden
       setJmShowMulligans(d.event.jm_show_mulligans === 0 ? false : true);
+      setScoringMode(
+        d.event.scoring_mode
+          || (d.event.event_type === 'weekly_match' ? 'single' : 'distributed'),
+      );
       try {
         const parsed = JSON.parse(d.event.enabled_games_json || '["stroke_play"]');
         setEnabledGames(Array.isArray(parsed) && parsed.length > 0 ? parsed : ['stroke_play']);
@@ -619,14 +625,33 @@ export default function EventDetail() {
   const saveGameSettings = async () => {
     try {
       await api.updateGameSettings(eventId, {
-        event_type: eventType,
+        // event_type stays in sync with scoring_mode for V1 read paths.
+        event_type: scoringMode === 'single' ? 'weekly_match' : 'tournament',
         enabled_games: enabledGames,
         jm_show_mulligans: jmShowMulligans,
+        scoring_mode: scoringMode,
       });
       showToast('Game settings saved');
       load();
     } catch (e) { showToast('Error: ' + e.message); }
   };
+
+  // Fetch the inferred scoring mode + capability flag whenever the format
+  // mix changes so the toggle can disable Distributed when it's not
+  // supported (e.g. wolf).
+  useEffect(() => {
+    if (enabledGames.length === 0) return;
+    api.getFormats(enabledGames).then((res) => {
+      setScoringModeMeta({
+        inferred: res.inferred_scoring_mode || 'distributed',
+        canUseDistributed: res.can_use_distributed !== false,
+      });
+      // Auto-snap if the current mode is no longer valid for the new mix.
+      if (res.can_use_distributed === false && scoringMode === 'distributed') {
+        setScoringMode('single');
+      }
+    }).catch(() => {});
+  }, [enabledGames.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveGamePoint = async () => {
     if (!gamePointTeam) { showToast('Choose a team'); return; }
@@ -775,14 +800,41 @@ export default function EventDetail() {
 
       {/* Weekly Match / Game Settings */}
       <div className="card god-card" style={{ marginBottom: '1.5rem' }}>
-        <h2>🎮 Weekly Match Games</h2>
-        <div className="form-row">
-          <div className="form-group">
-            <label>Mode</label>
-            <select value={eventType} onChange={(e) => setEventType(e.target.value)}>
-              <option value="tournament">Tournament</option>
-              <option value="weekly_match">Weekly Match</option>
-            </select>
+        <h2>🎮 Game settings</h2>
+        <div className="form-group">
+          <label>Scoring mode</label>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <label style={{
+              flex: '1 1 220px', padding: '0.6rem', border: '1px solid var(--slate-200)', borderRadius: 6,
+              background: scoringMode === 'single' ? 'var(--green-50, #f0fdf4)' : 'white', cursor: 'pointer',
+            }}>
+              <input type="radio" checked={scoringMode === 'single'} onChange={() => setScoringMode('single')} />
+              <strong style={{ marginLeft: 6 }}>Single scorer</strong>
+              <div style={{ fontSize: '0.85rem', color: 'var(--slate-500)' }}>
+                One link, one person enters every score for the group.
+              </div>
+            </label>
+            <label style={{
+              flex: '1 1 220px', padding: '0.6rem', border: '1px solid var(--slate-200)', borderRadius: 6,
+              background: scoringMode === 'distributed' ? 'var(--green-50, #f0fdf4)' : 'white',
+              cursor: scoringModeMeta.canUseDistributed ? 'pointer' : 'not-allowed',
+              opacity: scoringModeMeta.canUseDistributed ? 1 : 0.5,
+            }}>
+              <input
+                type="radio"
+                checked={scoringMode === 'distributed'}
+                disabled={!scoringModeMeta.canUseDistributed}
+                onChange={() => setScoringMode('distributed')}
+              />
+              <strong style={{ marginLeft: 6 }}>Distributed</strong>
+              <div style={{ fontSize: '0.85rem', color: 'var(--slate-500)' }}>
+                Each team's link enters their own scores.
+                {!scoringModeMeta.canUseDistributed && <em> Not supported by current games.</em>}
+              </div>
+            </label>
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--slate-500)', marginTop: '0.4rem' }}>
+            Suggested: <strong>{scoringModeMeta.inferred}</strong>
           </div>
         </div>
         <div className="form-group">
@@ -995,6 +1047,13 @@ export default function EventDetail() {
             >
               ⬇ Export CSV
             </a>
+            <Link
+              to={`/admin/event/${eventId}/print`}
+              className="btn btn-secondary btn-sm"
+              title="Open the print-friendly results page (use Save as PDF)"
+            >
+              🖨 Print / PDF
+            </Link>
           </div>
         </div>
 

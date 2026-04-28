@@ -5,6 +5,7 @@ import OrgDetail from './pages/OrgDetail';
 import EventDetail from './pages/EventDetail';
 import EventWizard from './pages/EventWizard';
 import AuditLog from './pages/AuditLog';
+import PrintResults from './pages/PrintResults';
 import QRPack from './pages/QRPack';
 import ScoreEntry from './pages/ScoreEntry';
 import MatchScorer from './pages/MatchScorer';
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/admin/event/:eventId" element={<><AdminBar /><EventDetail /></>} />
         <Route path="/admin/event/:eventId/qr-pack" element={<><AdminBar /><QRPack /></>} />
         <Route path="/admin/event/:eventId/audit" element={<><AdminBar /><AuditLog /></>} />
+        <Route path="/admin/event/:eventId/print" element={<PrintResults />} />
 
         {/* Public routes — clean public nav */}
         <Route path="/score/:accessToken" element={<><PublicBar /><ScoreEntry /></>} />
