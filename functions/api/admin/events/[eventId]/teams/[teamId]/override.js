@@ -1,4 +1,4 @@
-import { logScoreChange } from '../../../../../_audit.js';
+import { logScoreChange } from '../../../../../../_audit.js';
 
 function newId(prefix = '') { return prefix + crypto.randomUUID().replace(/-/g, '').slice(0, 20); }
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }

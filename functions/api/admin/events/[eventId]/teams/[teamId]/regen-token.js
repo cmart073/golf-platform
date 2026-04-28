@@ -3,8 +3,8 @@
 // stops working. Used when an organizer needs to revoke access (lost
 // phone, sent to the wrong group, etc.) without rebuilding the team.
 
-import { newToken } from '../../../../../_tokens.js';
-import { logAudit } from '../../../../../_audit.js';
+import { newToken } from '../../../../../../_tokens.js';
+import { logAudit } from '../../../../../../_audit.js';
 
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function err(message, status = 400) { return json({ error: message }, status); }
