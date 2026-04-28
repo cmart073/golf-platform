@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { submitMatchHole as submitMatchHoleQueued } from '../offline/scorer';
+import SyncStatusPill from '../components/SyncStatusPill';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -366,9 +368,13 @@ export default function MatchScorer() {
     if (scores.length === 0) { showToast('Enter at least one score'); return; }
     setSaving(true);
     try {
-      await api.submitMatchHole(scorerToken, { hole_number: selectedHole, scores });
-      showToast(`Hole ${selectedHole} saved ✓`);
-      await load();
+      const outcome = await submitMatchHoleQueued({ scorerToken, hole_number: selectedHole, scores });
+      if (outcome.queued) {
+        showToast(`Hole ${selectedHole} saved locally — will sync when online`);
+      } else {
+        showToast(`Hole ${selectedHole} saved ✓`);
+        await load();
+      }
       // Auto-advance to next incomplete hole
       for (let i = 1; i <= holes.length; i++) {
         const nextHole = ((selectedHole - 1 + i) % holes.length) + 1;
@@ -401,6 +407,7 @@ export default function MatchScorer() {
 
   return (
     <div className="ms-page">
+      <SyncStatusPill />
       {/* Header */}
       <div className="ms-header">
         <div className="ms-header-left">
