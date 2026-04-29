@@ -34,6 +34,9 @@ export default function SetupStep({ data, setData, orgs, onComplete }) {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchedAt, setSearchedAt] = useState(null);
+  const [searchRadiusKm, setSearchRadiusKm] = useState(40);
+  const [upstreamState, setUpstreamState] = useState(null); // 'ok' | 'unreachable'
+  const [manualQuery, setManualQuery] = useState('');
   const [newCourseName, setNewCourseName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -51,18 +54,38 @@ export default function SetupStep({ data, setData, orgs, onComplete }) {
     }).catch(() => setSavedCourses([]));
   }, [data.orgId]);
 
-  const findNearMe = async () => {
+  const findNearMe = async (radiusOverrideKm) => {
     setError('');
-    const coords = await geo.request();
+    const radius = radiusOverrideKm ?? searchRadiusKm;
+    const coords = geo.coords || await geo.request();
     if (!coords) { setError(geo.error || 'Could not get your location'); return; }
     setSearching(true);
+    setUpstreamState(null);
     try {
-      const res = await api.searchCourses({ lat: coords.lat, lng: coords.lng, radiusKm: 25 });
+      const res = await api.searchCourses({ lat: coords.lat, lng: coords.lng, radiusKm: radius });
       setSearchResults(res.results || []);
+      setUpstreamState(res.upstream || 'ok');
       setSearchedAt(new Date());
+      if (radiusOverrideKm) setSearchRadiusKm(radiusOverrideKm);
     } catch (e) {
       setError(e.message);
     } finally { setSearching(false); }
+  };
+
+  // Manual entry fallback when OSM has poor coverage in the user's area.
+  // Creates a blank course with the typed name so the wizard can proceed.
+  const useManualName = async () => {
+    if (!manualQuery.trim()) return;
+    if (!data.orgId) { setError('Pick an organization first'); return; }
+    setBusy(true);
+    setError('');
+    try {
+      const c = await api.createCourse(data.orgId, { name: manualQuery.trim(), holes: data.holes });
+      setData({ ...data, courseId: c.id, courseName: c.name });
+      setManualQuery('');
+      setCourseMode('saved');
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
   };
 
   const pickOSM = async (osm) => {
@@ -161,7 +184,7 @@ export default function SetupStep({ data, setData, orgs, onComplete }) {
         {courseMode === 'near' && (
           <div className="wiz-course-pane">
             {!geo.coords && (
-              <button type="button" className="wiz-cta" onClick={findNearMe} disabled={geo.status === 'requesting'}>
+              <button type="button" className="wiz-cta" onClick={() => findNearMe()} disabled={geo.status === 'requesting'}>
                 {geo.status === 'requesting' ? 'Locating…' : '📍 Find courses near me'}
               </button>
             )}
@@ -170,7 +193,19 @@ export default function SetupStep({ data, setData, orgs, onComplete }) {
             )}
             {geo.coords && (
               <>
-                <div className="wiz-hint">Within 25 mi of you · {searching ? 'searching…' : (searchedAt ? `${searchResults.length} found` : '')} <button type="button" className="wiz-link" onClick={findNearMe}>↻ refresh</button></div>
+                <div className="wiz-hint">
+                  Within {Math.round(searchRadiusKm * 0.621371)} mi of you · {searching ? 'searching…' : (searchedAt ? `${searchResults.length} found` : '')}
+                  {' '}
+                  <button type="button" className="wiz-link" onClick={() => findNearMe()}>↻ refresh</button>
+                </div>
+
+                {upstreamState === 'unreachable' && (
+                  <div className="wiz-hint warn">
+                    Couldn't reach the OSM service. <button type="button" className="wiz-link" onClick={() => findNearMe()}>Retry</button>
+                    {' '}or use ✨ Add new below.
+                  </div>
+                )}
+
                 <div className="wiz-course-list">
                   {searchResults.map((c) => (
                     <button key={c.osm_id} type="button" className="wiz-course-row" onClick={() => pickOSM(c)} disabled={busy}>
@@ -179,10 +214,32 @@ export default function SetupStep({ data, setData, orgs, onComplete }) {
                       <span className="wiz-course-dist">{formatDistance(c.distance_km)}</span>
                     </button>
                   ))}
-                  {!searching && searchResults.length === 0 && searchedAt && (
-                    <div className="wiz-hint">No courses found nearby. Try Saved or Add new.</div>
-                  )}
                 </div>
+
+                {!searching && searchResults.length === 0 && searchedAt && upstreamState !== 'unreachable' && (
+                  <>
+                    <div className="wiz-hint">
+                      Nothing tagged in OpenStreetMap within {Math.round(searchRadiusKm * 0.621371)} mi.
+                      {searchRadiusKm < 80 && (
+                        <> Try a <button type="button" className="wiz-link" onClick={() => findNearMe(80)}>50 mi search</button>.</>
+                      )}
+                    </div>
+                    <div className="wiz-row" style={{ marginTop: '0.5rem' }}>
+                      <label className="wiz-field flex-2">
+                        <span>Or type the course name</span>
+                        <input
+                          value={manualQuery}
+                          onChange={(e) => setManualQuery(e.target.value)}
+                          placeholder="Pebble Beach Golf Links"
+                          onKeyDown={(e) => e.key === 'Enter' && useManualName()}
+                        />
+                      </label>
+                      <button type="button" className="wiz-cta" onClick={useManualName} disabled={busy || !manualQuery.trim()}>
+                        {busy ? 'Adding…' : 'Add'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>
