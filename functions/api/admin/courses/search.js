@@ -1,27 +1,22 @@
-// GET /api/admin/courses/search?lat=...&lng=...&radius_km=15
+// GET /api/admin/courses/search?lat=...&lng=...&radius_km=40
 //
 // Looks up nearby golf courses from OpenStreetMap via the Overpass API.
-// Returns a normalized list the wizard can show as suggestions; the user
-// picks one and POSTs to /api/admin/orgs/:orgId/courses to persist.
+// Tries multiple Overpass mirrors in order so a single instance throttling
+// (which the public main instance does aggressively) doesn't blank the
+// wizard. Surfaces upstream status to the response so the UI can tell the
+// user "the OSM service is down" vs "no courses tagged near you".
 //
 // Why OSM/Overpass:
 //   - Free, no API key, no auth header required.
-//   - Coverage is broad (every continent has thousands of `leisure=
-//     golf_course` features); names + coordinates are very reliable.
-//   - Per-hole pars are rarely tagged in OSM, so we default all 18 holes
-//     to par 4 and surface a "✏ adjust pars" callout in the create flow.
-//
-// We fetch from the worker (not the browser) so:
-//   - CORS isn't a concern.
-//   - We can swap the Overpass mirror or add a fallback later without
-//     changing the client.
-//   - We can lightly cache responses in CF cache.
-//
-// Rate limiting: Overpass shared instances throttle clients via 429.
-// Treat 429 / network failures as a soft empty result rather than a
-// 500 — the user can fall back to the manual create-course form.
+//   - Coverage is broad; names + coordinates are very reliable.
+//   - Per-hole pars are rarely tagged — we default all 18 holes to par 4
+//     when the organizer picks an OSM course; they can edit later.
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+];
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -33,20 +28,20 @@ function err(message, status = 400) { return json({ error: message }, status); }
 
 function clampRadiusMeters(km) {
   const n = Number(km);
-  if (!Number.isFinite(n) || n <= 0) return 15_000;
+  if (!Number.isFinite(n) || n <= 0) return 40_000; // default 40 km ≈ 25 mi
   return Math.min(Math.max(n * 1000, 1_000), 80_000);
 }
 
 function buildOverpassQuery(lat, lng, radiusM) {
-  // Search nodes/ways/relations tagged as a golf course. `out center tags`
-  // returns a single representative point (centroid for ways/relations) so
-  // we can show distance / pin without dragging full geometries.
+  // Match anything that looks like a golf course: leisure=golf_course is
+  // canonical, but some POIs use golf=course or just sport=golf without
+  // the leisure tag. Also include `out center tags` so ways/relations
+  // resolve to a representative point.
   return `
-[out:json][timeout:15];
+[out:json][timeout:20];
 (
-  node["leisure"="golf_course"](around:${radiusM},${lat},${lng});
-  way["leisure"="golf_course"](around:${radiusM},${lat},${lng});
-  relation["leisure"="golf_course"](around:${radiusM},${lat},${lng});
+  nwr["leisure"="golf_course"](around:${radiusM},${lat},${lng});
+  nwr["golf"="course"](around:${radiusM},${lat},${lng});
 );
 out center tags;
 `.trim();
@@ -57,16 +52,15 @@ function normalize(el) {
   const lat = el.lat ?? el.center?.lat;
   const lon = el.lon ?? el.center?.lon;
   if (lat == null || lon == null) return null;
+  // Skip tagged things we don't want to surface as a course (driving
+  // ranges, mini-golf). Caller doesn't see these.
+  if (tags.golf === 'driving_range' || tags.leisure === 'miniature_golf') return null;
   if (!tags.name) return null;
 
-  // Pull a few common address tags; OSM is inconsistent (addr:city vs
-  // is_in:city, etc.) so we try a small priority chain for each field.
-  const city =
-    tags['addr:city'] || tags['addr:town'] || tags['addr:village'] || null;
+  const city = tags['addr:city'] || tags['addr:town'] || tags['addr:village'] || null;
   const state = tags['addr:state'] || tags['addr:region'] || null;
   const country = tags['addr:country'] || null;
 
-  // Hole / par hints, when tagged. golf:par sometimes covers total par.
   const holesRaw = tags['golf:holes'] || tags.holes;
   const holes = holesRaw && /^\d+$/.test(holesRaw) ? parseInt(holesRaw, 10) : null;
   const totalPar = tags['golf:par'] && /^\d+$/.test(tags['golf:par'])
@@ -78,14 +72,13 @@ function normalize(el) {
     name: tags.name,
     lat, lng: lon,
     city, state, country,
-    holes_hint: holes,                // may be null
-    total_par_hint: totalPar,         // may be null
+    holes_hint: holes,
+    total_par_hint: totalPar,
     website: tags.website || tags['contact:website'] || null,
     phone:   tags.phone   || tags['contact:phone']   || null,
   };
 }
 
-// Haversine in km. Used to sort and to expose a "X mi" label client-side.
 function distanceKm(a, b) {
   const toRad = (d) => (d * Math.PI) / 180;
   const R = 6371;
@@ -97,50 +90,62 @@ function distanceKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
+// Try each mirror until one returns a 2xx. Records the per-mirror outcome
+// so the response can surface what actually happened (helpful when 0 hits
+// is upstream failure vs genuine sparse area).
+async function fetchFromMirrors(query) {
+  const attempts = [];
+  for (const url of OVERPASS_MIRRORS) {
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          // Polite UA so Overpass operators can identify the integration
+          // if anything odd ever surfaces in their logs.
+          'User-Agent': 'fairways-live/1.0 (https://fairwayslive.app; admin@fairwayslive.app)',
+        },
+        body: 'data=' + encodeURIComponent(query),
+        cf: { cacheTtl: 300, cacheEverything: true },
+      });
+      if (resp.ok) {
+        const j = await resp.json();
+        attempts.push({ url, status: resp.status, ok: true });
+        return { json: j, mirror: url, attempts };
+      }
+      attempts.push({ url, status: resp.status, ok: false });
+    } catch (e) {
+      attempts.push({ url, error: String(e?.message || e), ok: false });
+    }
+  }
+  return { json: null, mirror: null, attempts };
+}
+
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const lat = Number(url.searchParams.get('lat'));
   const lng = Number(url.searchParams.get('lng'));
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    return err('lat and lng query params required');
-  }
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-    return err('lat/lng out of range');
-  }
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return err('lat and lng query params required');
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return err('lat/lng out of range');
+
   const radiusM = clampRadiusMeters(url.searchParams.get('radius_km'));
+  const query = buildOverpassQuery(lat, lng, radiusM);
 
-  const body = buildOverpassQuery(lat, lng, radiusM);
+  const { json: osmJson, mirror, attempts } = await fetchFromMirrors(query);
 
-  let osmJson;
-  try {
-    const resp = await fetch(OVERPASS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'data=' + encodeURIComponent(body),
-      // Cloudflare Workers respect cf for sub-fetch caching — give Overpass
-      // results a 5-minute edge cache; the underlying data changes slowly.
-      cf: { cacheTtl: 300, cacheEverything: true },
-    });
-    if (!resp.ok) {
-      // Treat any non-2xx (incl. 429) as soft-empty — we surface a
-      // friendly empty list rather than a 500 so the wizard can fall
-      // back to manual entry without losing the user's flow.
-      return json({
-        center: { lat, lng },
-        radius_km: radiusM / 1000,
-        results: [],
-        upstream_status: resp.status,
-        source: 'osm',
-      });
-    }
-    osmJson = await resp.json();
-  } catch (e) {
-    return json({
+  // All mirrors failed. Surface that distinctly so the UI can say "OSM
+  // unreachable, try again" rather than the misleading "no courses found".
+  if (!osmJson) {
+    return new Response(JSON.stringify({
       center: { lat, lng },
       radius_km: radiusM / 1000,
       results: [],
-      upstream_error: String(e?.message || e),
+      upstream: 'unreachable',
+      attempts,
       source: 'osm',
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
   }
 
@@ -148,10 +153,8 @@ export async function onRequestGet(context) {
   const results = (osmJson.elements || [])
     .map(normalize)
     .filter(Boolean)
-    // Some courses appear as both a node and a relation — dedupe by name+
-    // approximate location. OSM IDs differ across types so name+coords is
-    // a more reliable key than osm_id alone.
     .reduce((acc, c) => {
+      // Dedupe identical features tagged as both node and relation.
       const key = `${c.name}|${c.lat.toFixed(3)}|${c.lng.toFixed(3)}`;
       if (!acc._seen.has(key)) {
         acc._seen.add(key);
@@ -168,12 +171,14 @@ export async function onRequestGet(context) {
     center: { lat, lng },
     radius_km: radiusM / 1000,
     results,
+    upstream: 'ok',
+    mirror,
+    attempts,
     source: 'osm',
   }), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      // Browser-side cache for a minute so a quick re-search is instant.
       'Cache-Control': 'private, max-age=60',
     },
   });

@@ -32,7 +32,7 @@ export const api = {
   // Admin - Courses
   getCourses: (orgId) => request(`/api/admin/orgs/${orgId}/courses`),
   createCourse: (orgId, body) => request(`/api/admin/orgs/${orgId}/courses`, { method: 'POST', body: JSON.stringify(body) }),
-  searchCourses: ({ lat, lng, radiusKm = 15 }) =>
+  searchCourses: ({ lat, lng, radiusKm = 40 }) =>
     request(`/api/admin/courses/search?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radius_km=${encodeURIComponent(radiusKm)}`),
 
   // Admin - Events
