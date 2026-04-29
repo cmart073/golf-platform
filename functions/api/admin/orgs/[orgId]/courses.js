@@ -20,10 +20,25 @@ export async function onRequestPost(context) {
   const db = context.env.DB;
   const orgId = context.params.orgId;
   const body = await context.request.json();
-  const { name, city, state, pars } = body;
+  const { name, city, state, pars, holes } = body;
 
   if (!name) return err('name required');
-  if (!pars || typeof pars !== 'object') return err('pars object required (e.g. {"1":4,"2":3,...})');
+
+  // V2.1: pars are optional. When omitted we default every hole to par 4
+  // so the autofilled-from-OSM flow can land in one click; the organizer
+  // can edit pars later from the course detail. `holes` lets us cap at 9
+  // for 9-hole courses; default to 18.
+  const holeCount = holes === 9 ? 9 : 18;
+  const parsByHole = {};
+  for (let h = 1; h <= holeCount; h++) {
+    const supplied = pars ? parseInt(pars[String(h)]) : null;
+    if (supplied) {
+      if (supplied < 3 || supplied > 6) return err(`Invalid par for hole ${h}: must be 3-6`);
+      parsByHole[h] = supplied;
+    } else {
+      parsByHole[h] = 4;
+    }
+  }
 
   const courseId = newId('crs_');
   const timestamp = now();
@@ -33,16 +48,18 @@ export async function onRequestPost(context) {
   ).bind(courseId, orgId, name, city || null, state || null, timestamp).run();
 
   const stmts = [];
-  for (let h = 1; h <= 18; h++) {
-    const par = parseInt(pars[String(h)]);
-    if (!par || par < 3 || par > 6) return err(`Invalid par for hole ${h}: must be 3-6`);
+  for (let h = 1; h <= holeCount; h++) {
     stmts.push(
       db.prepare(
         'INSERT INTO course_holes (id, course_id, hole_number, par) VALUES (?, ?, ?, ?)'
-      ).bind(newId('ch_'), courseId, h, par)
+      ).bind(newId('ch_'), courseId, h, parsByHole[h])
     );
   }
   await db.batch(stmts);
 
-  return json({ id: courseId, name, city, state }, 201);
+  return json({
+    id: courseId, name, city, state,
+    holes: holeCount,
+    pars_default: !pars,
+  }, 201);
 }
