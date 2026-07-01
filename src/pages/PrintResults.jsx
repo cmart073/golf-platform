@@ -45,6 +45,20 @@ export default function PrintResults() {
   const sp = results.stroke_play || [];
   const spByTeam = Object.fromEntries(sp.map((r) => [r.team_id, r]));
 
+  // Skins: per-hole detail lookup
+  const skinsDetail = results.skins_detail || [];
+  // Map hole_number → detail row for quick lookup
+  const skinsByHole = Object.fromEntries(skinsDetail.map((h) => [h.hole_number, h]));
+  // Map team_id → set of hole numbers they won (for scorecard highlighting)
+  const skinsWonHolesByTeam = {};
+  skinsDetail.forEach((h) => {
+    if (h.winner_team_id) {
+      skinsWonHolesByTeam[h.winner_team_id] = skinsWonHolesByTeam[h.winner_team_id] || new Set();
+      skinsWonHolesByTeam[h.winner_team_id].add(h.hole_number);
+    }
+  });
+  const skinsEnabled = enabledGames.includes('skins') && skinsDetail.length > 0;
+
   return (
     <div className="print-page">
       <style>{`
@@ -55,6 +69,8 @@ export default function PrintResults() {
         .print-page th, .print-page td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; }
         .print-page th { background: #f1f5f9; }
         .print-page .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .print-page .skin-won { background: #f0fdf4 !important; position: relative; }
+        .print-page .skin-won::after { content: '🏆'; font-size: 7pt; position: absolute; top: 1px; right: 1px; line-height: 1; }
         .print-actions { display: flex; gap: 8px; margin-bottom: 16px; }
         @media print {
           .print-actions { display: none; }
@@ -128,7 +144,19 @@ export default function PrintResults() {
               <tbody>
                 <tr>
                   <td>Strokes</td>
-                  {holes.map((h) => <td key={h.hole_number} className="num">{scoreByHole[h.hole_number] ?? '—'}</td>)}
+                  {holes.map((h) => {
+                    const wonSkin = skinsEnabled && skinsWonHolesByTeam[t.id]?.has(h.hole_number);
+                    const skinRow = wonSkin ? skinsByHole[h.hole_number] : null;
+                    return (
+                      <td key={h.hole_number}
+                        className={`num${wonSkin ? ' skin-won' : ''}`}
+                        title={wonSkin ? `Skin won${skinRow?.carry_pot > 1 ? ` (×${skinRow.carry_pot} carryover)` : ''}` : undefined}
+                        style={wonSkin ? { position: 'relative' } : undefined}
+                      >
+                        {scoreByHole[h.hole_number] ?? '—'}
+                      </td>
+                    );
+                  })}
                   <td className="num"><strong>{total}</strong></td>
                 </tr>
               </tbody>
@@ -146,12 +174,60 @@ export default function PrintResults() {
       {enabledGames.includes('skins') && results.skins && (
         <>
           <h2>Skins</h2>
-          <table>
-            <thead><tr><th>Team</th><th className="num">Skins won</th></tr></thead>
+
+          {/* Summary totals */}
+          <table style={{ marginBottom: 8 }}>
+            <thead><tr><th>Team</th><th className="num">Skins Won</th></tr></thead>
             <tbody>
-              {results.skins.map((r) => <tr key={r.team_id}><td>{r.team_name}</td><td className="num">{r.skins_won}</td></tr>)}
+              {results.skins.filter(r => r.skins_won > 0).map((r) => (
+                <tr key={r.team_id}><td>{r.team_name}</td><td className="num"><strong>{r.skins_won}</strong></td></tr>
+              ))}
+              {results.skins.every(r => r.skins_won === 0) && (
+                <tr><td colSpan={2} style={{ color: '#94a3b8' }}>No skins won yet</td></tr>
+              )}
             </tbody>
           </table>
+
+          {/* Per-hole breakdown */}
+          {skinsDetail.length > 0 && (
+            <table>
+              <thead>
+                <tr>
+                  <th className="num">Hole</th>
+                  <th>Winner</th>
+                  <th className="num">Score</th>
+                  <th className="num">Pot</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {skinsDetail.map((h) => (
+                  <tr key={h.hole_number}
+                    style={h.status === 'won' ? { background: '#f0fdf4' } : h.status === 'tied' ? { background: '#fffbeb' } : {}}
+                  >
+                    <td className="num">{h.hole_number}</td>
+                    <td style={{ fontWeight: h.status === 'won' ? 700 : 400 }}>
+                      {h.status === 'won' && <>🏆 {h.winner_team_name}</>}
+                      {h.status === 'tied' && <span style={{ color: '#92400e' }}>Tied</span>}
+                      {h.status === 'pending' && <span style={{ color: '#94a3b8' }}>—</span>}
+                    </td>
+                    <td className="num">{h.winner_score ?? (h.status === 'tied' ? `${h.tied_teams?.map(t => t.team_name).join(' / ')}` : '—')}</td>
+                    <td className="num">{h.carry_pot > 1 ? `×${h.carry_pot}` : '1'}</td>
+                    <td style={{ fontSize: '9pt', color: '#475569' }}>
+                      {h.status === 'won' && h.is_carryover && `Collected ${h.holes_collected?.join(', ')}`}
+                      {h.status === 'tied' && h.tied_teams?.map(t => t.team_name).join(' / ')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {results.skins_unresolved_carry > 0 && (
+            <div style={{ fontSize: '10pt', color: '#92400e', marginTop: 4 }}>
+              ⚠ {results.skins_unresolved_carry} skin{results.skins_unresolved_carry !== 1 ? 's' : ''} unresolved — final hole(s) ended tied
+            </div>
+          )}
         </>
       )}
       {enabledGames.includes('match_play') && results.match_play && (
@@ -183,3 +259,4 @@ export default function PrintResults() {
     </div>
   );
 }
+
