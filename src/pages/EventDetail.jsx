@@ -147,7 +147,7 @@ function SponsorSection({ eventId, sponsors: initialSponsors, onUpdate }) {
 }
 
 /* ── God Mode: Team Scorecard Editor ── */
-function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = false }) {
+function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = false, skinsDetail = [] }) {
   const [expanded, setExpanded] = useState(false);
   const [editHole, setEditHole] = useState(null);
   const [editVal, setEditVal] = useState('');
@@ -191,6 +191,12 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
   }
 
   const formatToPar = (v) => v === 0 ? 'E' : v > 0 ? `+${v}` : `${v}`;
+
+  // Build skins lookup: hole_number → detail row (only holes this team won)
+  const skinsWonByHole = {};
+  skinsDetail.forEach(h => {
+    if (h.winner_team_id === team.id) skinsWonByHole[h.hole_number] = h;
+  });
 
   const handleSave = async (holeNum) => {
     const val = parseInt(editVal);
@@ -348,6 +354,12 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
                           >
                             {strokes || '–'}
                             {sc?.updated_by === 'admin' && <span className="god-admin-dot" title="Admin override">●</span>}
+                            {skinsWonByHole[h.hole_number] && (
+                              <span title={`Skin won${skinsWonByHole[h.hole_number].carry_pot > 1 ? ` (×${skinsWonByHole[h.hole_number].carry_pot} carryover)` : ''}`}
+                                style={{ marginLeft: 2, fontSize: '0.65rem' }}>
+                                🏆{skinsWonByHole[h.hole_number].carry_pot > 1 ? `×${skinsWonByHole[h.hole_number].carry_pot}` : ''}
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>
@@ -965,6 +977,105 @@ export default function EventDetail() {
           ) : (
             <div style={{ display: 'grid', gap: '0.75rem' }}>
               {Object.entries(gameResults).map(([game, data]) => {
+                // Skip internal-only skins keys — handled inside the skins card below
+                if (game === 'skins_detail' || game === 'skins_unresolved_carry') return null;
+
+                // ── Skins: rich per-hole breakdown ──────────────────────────
+                if (game === 'skins') {
+                  const summary = Array.isArray(data) ? data : [];
+                  const detail = Array.isArray(gameResults.skins_detail) ? gameResults.skins_detail : [];
+                  const unresolvedCarry = gameResults.skins_unresolved_carry || 0;
+                  const totalSkins = summary.reduce((s, r) => s + r.skins_won, 0);
+                  return (
+                    <div key={game} className="card" style={{ padding: '0.75rem' }}>
+                      <div style={{ fontWeight: 700, marginBottom: '0.75rem', fontSize: '0.95rem' }}>🏆 Skins</div>
+
+                      {/* Summary totals */}
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
+                        {summary.filter(r => r.skins_won > 0).map(r => (
+                          <span key={r.team_id} style={{
+                            background: 'var(--green-50)', border: '1px solid var(--green-200)',
+                            borderRadius: 6, padding: '0.2rem 0.6rem', fontSize: '0.82rem', fontWeight: 600,
+                            color: 'var(--green-800)',
+                          }}>
+                            {r.team_name} · {r.skins_won} skin{r.skins_won !== 1 ? 's' : ''}
+                          </span>
+                        ))}
+                        {totalSkins === 0 && <span style={{ color: 'var(--slate-400)', fontSize: '0.85rem' }}>No skins won yet</span>}
+                      </div>
+
+                      {/* Per-hole breakdown */}
+                      {detail.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.4rem' }}>
+                          {detail.map(h => {
+                            const won    = h.status === 'won';
+                            const tied   = h.status === 'tied';
+                            const pending = h.status === 'pending';
+                            return (
+                              <div key={h.hole_number} style={{
+                                borderRadius: 6, padding: '0.4rem 0.55rem', fontSize: '0.78rem',
+                                border: won
+                                  ? '1px solid var(--green-300, #86efac)'
+                                  : tied
+                                  ? '1px solid var(--amber-300, #fcd34d)'
+                                  : '1px solid var(--slate-200)',
+                                background: won
+                                  ? 'var(--green-50, #f0fdf4)'
+                                  : tied
+                                  ? '#fffbeb'
+                                  : 'var(--slate-50)',
+                              }}>
+                                <div style={{ fontWeight: 700, color: 'var(--slate-600)', marginBottom: '0.15rem' }}>
+                                  Hole {h.hole_number}
+                                  {h.carry_pot > 1 && won && (
+                                    <span style={{ marginLeft: '0.3rem', fontSize: '0.7rem', color: 'var(--green-700)', fontWeight: 600 }}>
+                                      ×{h.carry_pot}
+                                    </span>
+                                  )}
+                                </div>
+                                {won && (
+                                  <div style={{ color: 'var(--green-800)', fontWeight: 600 }}>
+                                    🏆 {h.winner_team_name}
+                                    {h.winner_score != null && (
+                                      <span style={{ fontWeight: 400, color: 'var(--green-700)', marginLeft: '0.25rem' }}>
+                                        ({h.winner_score})
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {tied && (
+                                  <div style={{ color: '#92400e' }}>
+                                    🤝 Tied → carry
+                                    {h.carry_pot > 1 && (
+                                      <span style={{ marginLeft: '0.3rem', color: 'var(--amber-700, #b45309)', fontWeight: 600 }}>
+                                        (pot: {h.carry_pot})
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {pending && (
+                                  <div style={{ color: 'var(--slate-400)' }}>Pending</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {unresolvedCarry > 0 && (
+                        <div style={{
+                          marginTop: '0.6rem', fontSize: '0.82rem', fontWeight: 600,
+                          color: '#92400e', background: '#fffbeb',
+                          border: '1px solid var(--amber-300, #fcd34d)',
+                          borderRadius: 6, padding: '0.35rem 0.6rem',
+                        }}>
+                          ⚠ {unresolvedCarry} skin{unresolvedCarry !== 1 ? 's' : ''} unresolved — final hole(s) tied
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 // Nassau has sub-results (front, back, overall, presses)
                 if (game === 'nassau' && data && typeof data === 'object' && !Array.isArray(data)) {
                   return (
@@ -1168,7 +1279,7 @@ export default function EventDetail() {
                     />
                   </div>
                 </div>
-                <TeamScorecard team={t} holes={holes} eventId={eventId} onUpdate={load} showToast={showToast} jmEnabled={enabledGames.includes('jeff_martin')} />
+                <TeamScorecard team={t} holes={holes} eventId={eventId} onUpdate={load} showToast={showToast} jmEnabled={enabledGames.includes('jeff_martin')} skinsDetail={Array.isArray(gameResults.skins_detail) ? gameResults.skins_detail : []} />
               </div>
             ))}
           </div>
@@ -1194,4 +1305,5 @@ export default function EventDetail() {
     </div>
   );
 }
+
 
