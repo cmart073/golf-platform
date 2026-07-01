@@ -27,6 +27,7 @@ export async function onRequestPost(context) {
   const {
     event_type, enabled_games, jm_show_mulligans,
     scoring_mode, token_policy, branding_overrides,
+    leaderboard_show_side_games,
   } = body;
 
   const normalized = normalizeGames(enabled_games);
@@ -59,6 +60,7 @@ export async function onRequestPost(context) {
   if (!needsScorerToken) scorerToken = null;
 
   const showMulligans = jm_show_mulligans === false || jm_show_mulligans === 0 ? 0 : 1;
+  const showSideGames = leaderboard_show_side_games === false || leaderboard_show_side_games === 0 ? 0 : 1;
 
   // Always-present columns (V1 schema). The two columns added in later
   // migrations (0008 jm_show_mulligans, 0009 scoring_mode/token_policy/
@@ -71,7 +73,7 @@ export async function onRequestPost(context) {
     scorer_token: scorerToken,
   };
 
-  const v0008Cols = { ...baseCols, jm_show_mulligans: showMulligans };
+  const v0008Cols = { ...baseCols, jm_show_mulligans: showMulligans, leaderboard_show_side_games: showSideGames };
 
   const safeTokenPolicy = ['never', 'on_complete', 'fixed'].includes(token_policy)
     ? token_policy
@@ -120,6 +122,7 @@ export async function onRequestPost(context) {
     enabled_games: JSON.parse(enabledGamesJson),
     scorer_token: scorerToken,
     jm_show_mulligans: !!showMulligans,
+    leaderboard_show_side_games: !!showSideGames,
     scoring_mode: appliedLayer.scoring_mode || resolvedScoringMode,
     token_policy: appliedLayer.token_policy || null,
     branding_overrides: branding_overrides ?? null,
@@ -129,3 +132,4 @@ export async function onRequestPost(context) {
       : 'base',
   });
 }
+
