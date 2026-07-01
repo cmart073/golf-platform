@@ -20,7 +20,7 @@ export async function onRequestGet(context) {
   if (!event) return err('Event not found', 404);
 
   const { results: eventHoles } = await db.prepare(
-    'SELECT hole_number, par FROM event_holes WHERE event_id = ? ORDER BY hole_number'
+    'SELECT hole_number, par, tee FROM event_holes WHERE event_id = ? ORDER BY hole_number'
   ).bind(event.id).all();
 
   const { results: scores } = await db.prepare(
@@ -94,8 +94,10 @@ export async function onRequestGet(context) {
     },
     token_expired: isEventTokenExpired(event),
     pars: eventHoles.reduce((acc, h) => { acc[h.hole_number] = h.par; return acc; }, {}),
+    tees: eventHoles.reduce((acc, h) => { if (h.tee) acc[h.hole_number] = h.tee; return acc; }, {}),
     scores: scoresMap,
     your_holes: yourHoles,
     mulligans,
   });
 }
+
