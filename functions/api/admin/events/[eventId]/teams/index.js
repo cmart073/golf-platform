@@ -22,7 +22,7 @@ export async function onRequestPost(context) {
   const db = context.env.DB;
   const eventId = context.params.eventId;
   const body = await context.request.json();
-  const { team_name, players, handicap_strokes } = body;
+  const { team_name, players, handicap_strokes, starting_hole } = body;
 
   if (!team_name) return err('team_name required');
 
@@ -31,13 +31,21 @@ export async function onRequestPost(context) {
 
   const handicap = Number.isFinite(Number(handicap_strokes)) ? parseInt(handicap_strokes) : 0;
 
+  // Validate starting_hole if provided (1–18)
+  let startHole = null;
+  if (starting_hole != null) {
+    const n = parseInt(starting_hole);
+    if (isNaN(n) || n < 1 || n > 18) return err('starting_hole must be 1–18');
+    startHole = n;
+  }
+
   const id = newId('tm_');
   const access_token = newToken(32);
   const players_json = players && players.length > 0 ? JSON.stringify(players) : null;
 
   await db.prepare(
-    'INSERT INTO teams (id, event_id, team_name, players_json, access_token, handicap_strokes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).bind(id, eventId, team_name, players_json, access_token, handicap, now()).run();
+    'INSERT INTO teams (id, event_id, team_name, players_json, access_token, handicap_strokes, starting_hole, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).bind(id, eventId, team_name, players_json, access_token, handicap, startHole, now()).run();
 
-  return json({ id, team_name, players, access_token, handicap_strokes: handicap }, 201);
+  return json({ id, team_name, players, access_token, handicap_strokes: handicap, starting_hole: startHole }, 201);
 }
