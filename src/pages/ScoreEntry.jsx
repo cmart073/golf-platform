@@ -192,13 +192,23 @@ export default function ScoreEntry() {
   );
   if (!ctx || selectedHole === null) return null;
 
-  const { team, event, pars, scores } = ctx;
+  const { team, event, pars, tees, scores } = ctx;
   const isTeamLocked = !!team.locked_at;
   const isEventLocked = !!event.locked_at || event.status === 'completed';
   const isLocked = isTeamLocked || isEventLocked;
   const isNotLive = event.status !== 'live' && event.status !== 'completed';
   const totalHoles = event.holes;
   const currentPar = pars[selectedHole] || 4;
+
+  // Tee box display config
+  const TEE_CONFIG = {
+    red:   { label: 'Red Tees',   bg: '#dc2626', color: '#fff' },
+    white: { label: 'White Tees', bg: '#fff',    color: '#1e293b', border: '2px solid #cbd5e1' },
+    blue:  { label: 'Blue Tees',  bg: '#1d4ed8', color: '#fff' },
+  };
+  const currentTee = tees ? tees[selectedHole] : null;
+  const teeStyle = currentTee ? TEE_CONFIG[currentTee] : null;
+
 
   // Hole order — wrap-around for shotgun starts
   const startingHole = team.starting_hole || 1;
@@ -380,6 +390,23 @@ export default function ScoreEntry() {
             <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--green-900)', marginBottom: '0.25rem' }}>
               Hole {selectedHole}
             </div>
+            {teeStyle && (
+              <div style={{
+                display: 'inline-block',
+                background: teeStyle.bg,
+                color: teeStyle.color,
+                border: teeStyle.border || 'none',
+                borderRadius: 8,
+                padding: '0.3rem 1rem',
+                fontWeight: 700,
+                fontSize: '1rem',
+                letterSpacing: '0.04em',
+                marginBottom: '0.4rem',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+              }}>
+                {teeStyle.label}
+              </div>
+            )}
             <div className="par-display">Par <strong>{currentPar}</strong></div>
 
             {isNotLive || isEventLocked ? (
@@ -604,3 +631,4 @@ export default function ScoreEntry() {
     </div>
   );
 }
+
