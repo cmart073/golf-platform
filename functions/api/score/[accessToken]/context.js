@@ -8,7 +8,7 @@ export async function onRequestGet(context) {
   const accessToken = context.params.accessToken;
 
   const team = await db.prepare(
-    'SELECT id, event_id, team_name, players_json, access_token, locked_at FROM teams WHERE access_token = ?'
+    'SELECT id, event_id, team_name, players_json, access_token, locked_at, starting_hole FROM teams WHERE access_token = ?'
   ).bind(accessToken).first();
 
   if (!team) return err('Invalid access token', 404);
@@ -16,7 +16,6 @@ export async function onRequestGet(context) {
   const event = await db.prepare(
     'SELECT * FROM events WHERE id = ?'
   ).bind(team.event_id).first();
-  // SELECT * picks up scoring_mode/token_* whenever migration 0009 is in place.
 
   if (!event) return err('Event not found', 404);
 
@@ -63,12 +62,20 @@ export async function onRequestGet(context) {
     } catch { /* table missing */ }
   }
 
+  // Determine shotgun flag — try the new column, fall back gracefully for
+  // pre-migration DBs.
+  const shotgunStart = event.shotgun_start === 1 || event.shotgun_start === true;
+
+  // starting_hole: use team assignment if set, otherwise 1
+  const startingHole = team.starting_hole || 1;
+
   return json({
     team: {
       id: team.id,
       team_name: team.team_name,
       players: team.players_json ? JSON.parse(team.players_json) : [],
       locked_at: team.locked_at,
+      starting_hole: startingHole,
     },
     event: {
       id: event.id,
@@ -82,6 +89,7 @@ export async function onRequestGet(context) {
       jm_show_mulligans: event.jm_show_mulligans == null ? true : event.jm_show_mulligans !== 0,
       scoring_mode: event.scoring_mode
         || (event.event_type === 'weekly_match' ? 'single' : 'distributed'),
+      shotgun_start: shotgunStart,
       ...tokenStateSnapshot(event),
     },
     token_expired: isEventTokenExpired(event),
