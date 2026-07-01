@@ -140,6 +140,23 @@ export default function PrintResults() {
                   {holes.map((h) => <th key={h.hole_number} className="num">{h.par}</th>)}
                   <th className="num">{holes.reduce((s, h) => s + h.par, 0)}</th>
                 </tr>
+                {holes.some(h => h.tee) && (
+                  <tr>
+                    <th>Tee</th>
+                    {holes.map((h) => {
+                      const teeColors = { red: '#fca5a5', white: '#f1f5f9', blue: '#93c5fd' };
+                      return (
+                        <th key={h.hole_number} className="num" style={{
+                          background: h.tee ? teeColors[h.tee] : 'transparent',
+                          fontSize: '8pt', color: '#1e293b',
+                        }}>
+                          {h.tee ? h.tee[0].toUpperCase() : ''}
+                        </th>
+                      );
+                    })}
+                    <th></th>
+                  </tr>
+                )}
               </thead>
               <tbody>
                 <tr>
@@ -259,4 +276,5 @@ export default function PrintResults() {
     </div>
   );
 }
+
 
