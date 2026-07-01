@@ -157,7 +157,7 @@ export async function onRequestGet(context) {
   }
 
   return json({
-    event: { name: event.name, date: event.date, holes: event.holes, status: event.status, leaderboard_visible: true, event_type: event.event_type, enabled_games: enabledGames },
+    event: { name: event.name, date: event.date, holes: event.holes, status: event.status, leaderboard_visible: true, event_type: event.event_type, enabled_games: enabledGames, show_side_games: event.leaderboard_show_side_games !== 0 },
     org: { name: org.name, slug: org.slug, logo_url: org.logo_url, brand_color: org.brand_color },
     branding,
     totals: { total_par: totalPar },
@@ -166,4 +166,5 @@ export async function onRequestGet(context) {
     hidden: false,
   });
 }
+
 
