@@ -136,7 +136,7 @@ export async function onRequestGet(context) {
   const org = await db.prepare('SELECT slug, name FROM organizations WHERE id = ?').bind(event.org_id).first();
 
   const { results: eventHoles } = await db.prepare(
-    'SELECT hole_number, par FROM event_holes WHERE event_id = ? ORDER BY hole_number'
+    'SELECT hole_number, par, tee FROM event_holes WHERE event_id = ? ORDER BY hole_number'
   ).bind(eventId).all();
 
   const { results: teams } = await db.prepare(
@@ -192,3 +192,4 @@ export async function onRequestGet(context) {
     game_points: gamePoints,
   });
 }
+
