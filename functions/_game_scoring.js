@@ -1,8 +1,8 @@
 // ============================================================
 // Game Scoring Engine — golf-platform
 // Supports: stroke_play, match_play, skins, bingo/bango/bongo,
-//           nassau, wolf, nine_points
-// Betting: presses, point multipliers
+//           nassau, wolf, nine_points, jeff_martin
+// Shotgun start: skins resolved in play order (wrap-around aware)
 // ============================================================
 
 export function safeJsonArray(raw, fallback = []) {
@@ -36,6 +36,21 @@ function getRelativeHcps(teams) {
 
 function netScoreForHole(strokes, relHcp, holeCount) {
   return strokes - relHcp / holeCount;
+}
+
+// ── Hole Order (shotgun wrap-around) ─────────────────────────
+// Returns the ordered array of hole numbers a team plays given
+// their starting hole. For a normal (non-shotgun) round, all
+// teams start on hole 1 so this is just [1, 2, …, totalHoles].
+//
+// For a shotgun start with startingHole = 7, totalHoles = 18:
+//   [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6]
+export function getHoleOrder(startingHole = 1, totalHoles = 18) {
+  const order = [];
+  for (let i = 0; i < totalHoles; i++) {
+    order.push(((startingHole - 1 + i) % totalHoles) + 1);
+  }
+  return order;
 }
 
 // ── Stroke Play ───────────────────────────────────────────────
@@ -80,27 +95,100 @@ function matchPlay(teams, byTeamHole, holeCount) {
   })).sort((a, b) => b.points - a.points);
 }
 
-// ── Skins ─────────────────────────────────────────────────────
-function skins(teams, byTeamHole, holeCount) {
+// ── Skins (play-order aware, gross, with carryover) ───────────
+// For shotgun events, skins are resolved in the order teams actually
+// play the holes — not in hole-number order. The holeOrder array
+// encodes this. For non-shotgun events it is always [1…18].
+//
+// Returns two shapes:
+//   summary[]  — { team_id, team_name, skins_won } sorted desc (existing shape)
+//   detail[]   — per-hole: { hole_number, play_position, winner_team_id,
+//                             winner_team_name, is_carryover, carry_pot,
+//                             tied_teams[] }
+//
+// The existing `skins` key on computeGameResults is the summary array for
+// backward compat. A new `skins_detail` key carries the full breakdown.
+function skins(teams, byTeamHole, holeCount, holeOrder = null) {
   const relHcps = getRelativeHcps(teams);
   const wins = {};
   teams.forEach(t => { wins[t.id] = 0; });
+
+  const playOrder = holeOrder || getHoleOrder(1, holeCount);
+  const detail = [];
   let carry = 1;
-  for (let hole = 1; hole <= holeCount; hole++) {
+
+  for (let pos = 0; pos < playOrder.length; pos++) {
+    const hole = playOrder[pos];
     const hs = teams.map(t => {
       const s = byTeamHole[t.id]?.[hole];
       if (s == null) return null;
-      return { team: t, net: netScoreForHole(s, relHcps[t.id], holeCount) };
+      // Gross skins (no handicap adjustment for outing-style gross skins)
+      return { team: t, score: s };
     }).filter(Boolean);
-    if (hs.length < 2) continue;
-    const best = Math.min(...hs.map(x => x.net));
-    const winners = hs.filter(x => x.net === best);
-    if (winners.length === 1) { wins[winners[0].team.id] += carry; carry = 1; }
-    else { carry += 1; }
+
+    // Skip holes where not all teams have scored yet
+    if (hs.length < 2) {
+      detail.push({
+        hole_number: hole,
+        play_position: pos + 1,
+        winner_team_id: null,
+        winner_team_name: null,
+        is_carryover: false,
+        carry_pot: carry,
+        tied_teams: [],
+        status: 'pending',
+      });
+      continue;
+    }
+
+    const best = Math.min(...hs.map(x => x.score));
+    const winners = hs.filter(x => x.score === best);
+    const tied = hs.filter(x => x.score === best).map(x => ({
+      team_id: x.team.id,
+      team_name: x.team.team_name,
+    }));
+
+    if (winners.length === 1) {
+      const w = winners[0];
+      wins[w.team.id] += carry;
+      detail.push({
+        hole_number: hole,
+        play_position: pos + 1,
+        winner_team_id: w.team.id,
+        winner_team_name: w.team.team_name,
+        winner_score: best,
+        is_carryover: carry > 1,
+        carry_pot: carry,
+        holes_collected: carry > 1
+          ? playOrder.slice(pos - (carry - 1), pos + 1)
+          : [hole],
+        tied_teams: [],
+        status: 'won',
+      });
+      carry = 1;
+    } else {
+      detail.push({
+        hole_number: hole,
+        play_position: pos + 1,
+        winner_team_id: null,
+        winner_team_name: null,
+        is_carryover: true,
+        carry_pot: carry,
+        tied_teams: tied,
+        status: 'tied',
+      });
+      carry += 1;
+    }
   }
-  return teams.map(t => ({
+
+  // Any unresolved carry at end of round
+  const unresolved = carry > 1;
+
+  const summary = teams.map(t => ({
     team_id: t.id, team_name: t.team_name, skins_won: wins[t.id],
   })).sort((a, b) => b.skins_won - a.skins_won);
+
+  return { summary, detail, unresolved_carry: unresolved ? carry - 1 : 0 };
 }
 
 // ── Bingo Bango Bongo ─────────────────────────────────────────
@@ -262,7 +350,6 @@ function ninePoints(teams, byTeamHole, holeCount) {
         }
       }
     } else {
-      // 4+ players: rank-based distribution
       let rank = 0;
       const rankPts = [];
       groups.forEach(g => {
@@ -284,24 +371,6 @@ function ninePoints(teams, byTeamHole, holeCount) {
 }
 
 // ── Jeff Martin (Modified Stableford scramble w/ "Your Hole" bonus) ──
-// Rules:
-//   Format:    4-person scramble (1 team score per hole)
-//   Scoring:   Modified Stableford from strokes vs par
-//   Your Hole: if a team member took every shot on the hole, -1 is applied
-//              to that hole's strokes BEFORE the Stableford table is read.
-//   Mulligans: 2 per person per 6 holes (tracked for display, not scored
-//              by the engine — the strokes entered by the scorer already
-//              reflect any mulligan used).
-//   Riders:    reference rule only, not scored.
-//
-// Stableford table (net = strokes - par, after Your-Hole adjustment):
-//   +2 or more → 0 pts
-//   +1         → 1 pt
-//   0 (par)    → 2 pts
-//   -1 birdie  → 3 pts
-//   -2 eagle   → 4 pts
-//   -3         → 5 pts
-//   -4 or less → 6 pts
 export function stablefordPoints(diff) {
   if (diff >= 2) return 0;
   if (diff === 1) return 1;
@@ -309,12 +378,12 @@ export function stablefordPoints(diff) {
   if (diff === -1) return 3;
   if (diff === -2) return 4;
   if (diff === -3) return 5;
-  return 6; // -4 or less
+  return 6;
 }
 
 function jeffMartin(teams, byTeamHole, holeCount, parByHole, yourHolesByTeam) {
   const rows = teams.map(t => {
-    const yours = yourHolesByTeam?.[t.id] || {}; // { holeNumber: playerIndex }
+    const yours = yourHolesByTeam?.[t.id] || {};
     const perHole = [];
     let totalPoints = 0;
     let birdies = 0, eagles = 0, pars = 0, yourHoleCount = 0;
@@ -327,7 +396,6 @@ function jeffMartin(teams, byTeamHole, holeCount, parByHole, yourHolesByTeam) {
       }
       const par = parByHole?.[h] ?? 4;
       const hasYourHole = yours[h] != null;
-      // Your-Hole: -1 applied to raw strokes before Stableford bucket
       const adjStrokes = hasYourHole ? strokes - 1 : strokes;
       const diff = adjStrokes - par;
       const pts = stablefordPoints(diff);
@@ -368,7 +436,6 @@ function applyMultiplier(results, multiplier) {
   }));
 }
 
-// ── Apply presses to match-style games ────────────────────────
 function applyPresses(teams, byTeamHole, holeCount, presses, gameType) {
   const gp = presses.filter(p => p.game_type === gameType);
   if (gp.length === 0) return [];
@@ -388,10 +455,14 @@ function applyPresses(teams, byTeamHole, holeCount, presses, gameType) {
 }
 
 // ── Main compute function ─────────────────────────────────────
+// New optional param: holeOrder — ordered array of hole numbers
+// representing play order (for shotgun starts). When not provided,
+// holes play 1…holeCount as normal.
 export function computeGameResults({
   event, teams, scores, manualPoints,
   presses = [], wolfPicks = [], multipliers = {},
   yourHoles = [], parByHole = null,
+  holeOrder = null,  // NEW: optional play-order array for shotgun skins
 }) {
   const enabled = safeJsonArray(event.enabled_games_json, ['stroke_play']);
   const holeCount = toNum(event.holes, 18);
@@ -415,7 +486,12 @@ export function computeGameResults({
   }
 
   if (enabled.includes('skins')) {
-    out.skins = applyMultiplier(skins(teams, byTeamHole, holeCount), multipliers.skins);
+    const skinsResult = skins(teams, byTeamHole, holeCount, holeOrder);
+    // Preserve existing summary array shape under 'skins' key for backward compat
+    out.skins = applyMultiplier(skinsResult.summary, multipliers.skins);
+    // Add detailed per-hole breakdown under new key
+    out.skins_detail = skinsResult.detail;
+    out.skins_unresolved_carry = skinsResult.unresolved_carry;
     const sp = applyPresses(teams, byTeamHole, holeCount, presses, 'skins');
     if (sp.length > 0) out.skins_presses = sp;
   }
