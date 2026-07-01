@@ -89,6 +89,7 @@ export default function Leaderboard() {
   const enabledGames = event.enabled_games || [];
   const jmEnabled = enabledGames.includes('jeff_martin');
   const hasGameResults = game_results && Object.keys(game_results).length > 0;
+  const showSideGames = event.show_side_games !== false;
   const brandColor = branding?.brand_color || null;
   const brandLogo = branding?.logo_url || null;
   // Inline `--brand-color` so existing CSS that already uses var(--green-800,
@@ -196,8 +197,8 @@ export default function Leaderboard() {
             </div>
           )}
 
-          {/* Side game results — only shown for weekly match or when games beyond stroke play are active */}
-          {hasGameResults && (
+          {/* Side game results — controlled by leaderboard_show_side_games event setting */}
+          {hasGameResults && showSideGames && (
             <div style={{ marginTop: '1.5rem' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--green-900)', marginBottom: '0.75rem', fontSize: '1.4rem' }}>
                 🎮 Side Games
@@ -231,3 +232,4 @@ export default function Leaderboard() {
     </div>
   );
 }
+
