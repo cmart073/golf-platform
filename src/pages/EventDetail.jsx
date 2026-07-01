@@ -657,6 +657,15 @@ export default function EventDetail() {
     finally { setImporting(false); }
   };
 
+
+  const handleSaveTee = async (holeNumber, tee) => {
+    try {
+      await api.updateHoleTee(eventId, holeNumber, tee);
+      showToast(`Hole ${holeNumber} → ${tee || 'no tee'}`);
+      load();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
   const handleStatusChange = async (status) => {
     const confirm_msg = status === 'completed'
       ? 'Lock & complete this event? Teams will no longer be able to edit scores.'
@@ -1183,16 +1192,48 @@ export default function EventDetail() {
         </div>
       </div>
 
-      {/* Hole Pars */}
+      {/* Hole Pars + Tee Assignments */}
       <div className="card god-card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1rem' }}>Hole Pars</h2>
-        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-          {holes.map(h => (
-            <div key={h.hole_number} className="god-par-chip">
-              <div className="god-par-hole">{h.hole_number}</div>
-              <div className="god-par-val">{h.par}</div>
-            </div>
-          ))}
+        <h2 style={{ fontSize: '1rem' }}>Hole Setup</h2>
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {holes.map(h => {
+            const teeColors = { red: '#dc2626', white: '#e2e8f0', blue: '#1d4ed8' };
+            const teeTextColors = { red: '#fff', white: '#1e293b', blue: '#fff' };
+            return (
+              <div key={h.hole_number} style={{
+                border: '1px solid var(--slate-200)', borderRadius: 8,
+                padding: '0.35rem 0.5rem', textAlign: 'center', minWidth: 52,
+                background: h.tee ? teeColors[h.tee] : 'var(--slate-50)',
+                color: h.tee ? teeTextColors[h.tee] : 'var(--slate-700)',
+                transition: 'background 0.15s',
+              }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em', opacity: 0.8 }}>
+                  H{h.hole_number}
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                  {h.par}
+                </div>
+                <select
+                  value={h.tee || ''}
+                  onChange={e => handleSaveTee(h.hole_number, e.target.value || null)}
+                  title={`Hole ${h.hole_number} tee`}
+                  style={{
+                    fontSize: '0.6rem', marginTop: '0.2rem', width: '100%',
+                    background: 'transparent',
+                    color: h.tee ? teeTextColors[h.tee] : 'var(--slate-500)',
+                    border: h.tee ? '1px solid rgba(255,255,255,0.4)' : '1px solid var(--slate-300)',
+                    borderRadius: 4, padding: '1px 2px', cursor: 'pointer',
+                  }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <option value="">— tee</option>
+                  <option value="red">Red</option>
+                  <option value="white">White</option>
+                  <option value="blue">Blue</option>
+                </select>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -1329,6 +1370,7 @@ export default function EventDetail() {
     </div>
   );
 }
+
 
 
 
