@@ -60,6 +60,35 @@ function HandicapEditor({ teamId, initialValue, eventId, onSaved, showToast }) {
   );
 }
 
+/* ── Starting Hole inline editor ── */
+function StartingHoleEditor({ teamId, initialValue, eventId, onSaved, showToast }) {
+  const [val, setVal] = useState(initialValue != null ? String(initialValue) : '');
+
+  const save = async () => {
+    const n = val === '' ? null : parseInt(val);
+    if (n !== null && (isNaN(n) || n < 1 || n > 18)) { showToast('Starting hole must be 1–18'); return; }
+    try {
+      await api.updateStartingHole(eventId, teamId, n);
+      showToast(n == null ? 'Starting hole cleared' : `Starting hole set to ${n}`);
+      onSaved();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
+  return (
+    <input
+      type="number"
+      min="1"
+      max="18"
+      placeholder="—"
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={save}
+      style={{ width: 70 }}
+      title="Starting hole (1–18 for shotgun starts)"
+    />
+  );
+}
+
 /* ── Sponsor management ── */
 function SponsorSection({ eventId, sponsors: initialSponsors, onUpdate }) {
   const [sponsors, setSponsors] = useState(initialSponsors || []);
@@ -205,6 +234,20 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
       <div className="god-team-header" onClick={() => setExpanded(!expanded)}>
         <div className="god-team-left">
           <span className="god-team-name">{team.team_name}</span>
+          {team.starting_hole != null && (
+            <span style={{
+              fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.03em',
+              background: 'var(--green-100, #dcfce7)', color: 'var(--green-800, #166534)',
+              border: '1px solid var(--green-300, #86efac)',
+              borderRadius: 5, padding: '0.15rem 0.45rem',
+            }}>⛳ Hole {team.starting_hole}</span>
+          )}
+          {team.starting_hole == null && (
+            <span style={{
+              fontSize: '0.72rem', fontWeight: 600,
+              color: 'var(--slate-400)', fontStyle: 'italic',
+            }}>no start hole</span>
+          )}
           {team.locked_at && <span className="god-lock-badge">🔒 SUBMITTED</span>}
           {!team.locked_at && holesEntered === totalHoles && <span className="god-ready-badge">✓ ALL IN</span>}
         </div>
@@ -1083,10 +1126,11 @@ export default function EventDetail() {
         {showBulk && (
           <div className="god-bulk-area">
             <div style={{ fontSize: '0.8rem', color: 'var(--slate-500)', marginBottom: '0.5rem' }}>
-              One team per line: <code>Team Name, Player1, Player2, Player3, Player4</code>
+              One team per line: <code>Team Name, Player1, Player2, Player3, Player4, StartingHole</code>
+              <span style={{ marginLeft: '0.5rem', color: 'var(--green-700)' }}>← StartingHole is optional (1–18)</span>
             </div>
             <textarea rows={6} value={bulkText} onChange={e => setBulkText(e.target.value)}
-              placeholder={"Eagles, John Smith, Jane Doe, Bob Wilson, Alice Brown\nBirdies, Tom Jones, Sarah Lee"}
+              placeholder={"Eagles, John Smith, Jane Doe, Bob Wilson, Alice Brown, 7\nBirdies, Tom Jones, Sarah Lee, 12"}
               className="god-bulk-textarea" />
             <button className="btn btn-primary btn-sm" onClick={handleBulkImport}
               disabled={importing || !bulkText.trim()} style={{ marginTop: '0.5rem' }}>
@@ -1102,15 +1146,27 @@ export default function EventDetail() {
           <div className="god-teams-list">
             {teams.map(t => (
               <div key={t.id}>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.35rem', gap: '0.4rem', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>Handicap</span>
-                  <HandicapEditor
-                    teamId={t.id}
-                    initialValue={t.handicap_strokes ?? 0}
-                    eventId={eventId}
-                    onSaved={load}
-                    showToast={showToast}
-                  />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.35rem', gap: '1rem', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--green-700)' }}>⛳ Start Hole</span>
+                    <StartingHoleEditor
+                      teamId={t.id}
+                      initialValue={t.starting_hole}
+                      eventId={eventId}
+                      onSaved={load}
+                      showToast={showToast}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>Handicap</span>
+                    <HandicapEditor
+                      teamId={t.id}
+                      initialValue={t.handicap_strokes ?? 0}
+                      eventId={eventId}
+                      onSaved={load}
+                      showToast={showToast}
+                    />
+                  </div>
                 </div>
                 <TeamScorecard team={t} holes={holes} eventId={eventId} onUpdate={load} showToast={showToast} jmEnabled={enabledGames.includes('jeff_martin')} />
               </div>
@@ -1138,3 +1194,4 @@ export default function EventDetail() {
     </div>
   );
 }
+
