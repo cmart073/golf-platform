@@ -28,12 +28,22 @@ function formatToPar(val) {
   return val > 0 ? `+${val}` : `${val}`;
 }
 
+// Returns ordered array of hole numbers starting from startingHole.
+// getHoleOrder(7, 18) → [7,8,9,10,11,12,13,14,15,16,17,18,1,2,3,4,5,6]
+function getHoleOrder(startingHole, totalHoles) {
+  const order = [];
+  for (let i = 0; i < totalHoles; i++) {
+    order.push(((startingHole - 1 + i) % totalHoles) + 1);
+  }
+  return order;
+}
+
 export default function ScoreEntry() {
   const { accessToken } = useParams();
   const [ctx, setCtx] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedHole, setSelectedHole] = useState(1);
+  const [selectedHole, setSelectedHole] = useState(null); // null until ctx loaded
   const [strokes, setStrokes] = useState('');
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -46,6 +56,11 @@ export default function ScoreEntry() {
     try {
       const data = await api.getScoreContext(accessToken);
       setCtx(data);
+      // On first load, set selectedHole to the team's starting hole
+      setSelectedHole(prev => {
+        if (prev !== null) return prev; // already navigated away, don't reset
+        return data.team.starting_hole || 1;
+      });
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   }, [accessToken]);
@@ -55,30 +70,23 @@ export default function ScoreEntry() {
   const strokesInputRef = useRef(null);
 
   useEffect(() => {
-    if (!ctx) return;
+    if (!ctx || selectedHole === null) return;
     const existing = ctx.scores[selectedHole];
     setStrokes(existing ? String(existing.strokes) : '');
   }, [selectedHole, ctx]);
 
-  // Scroll to top whenever the selected hole changes — applies to auto-advance,
-  // the "Next unfilled hole" button, and manual hole-chip taps.
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [selectedHole]);
 
-  // Focus the stroke input only when the hole has no score yet. If a score
-  // already exists, keep the keyboard dismissed — the scorer is reviewing,
-  // not entering.
   useEffect(() => {
-    if (!ctx) return;
+    if (!ctx || selectedHole === null) return;
     const hasScore = !!ctx.scores[selectedHole];
     const el = strokesInputRef.current;
     if (!el) return;
     if (hasScore) {
-      // Dismiss any open mobile keyboard.
       el.blur();
     } else {
-      // Empty hole — pop the keyboard for quick entry.
       el.focus();
     }
   }, [selectedHole, ctx]);
@@ -92,9 +100,6 @@ export default function ScoreEntry() {
     try {
       const outcome = await submitTeamHole({ accessToken, hole_number: selectedHole, strokes: s });
       if (outcome.queued) {
-        // Offline / network blip — apply optimistic update locally so the
-        // scorer keeps their flow. Sync worker will resolve in the
-        // background and the SyncStatusPill surfaces status.
         setCtx((prev) => ({
           ...prev,
           scores: { ...(prev.scores || {}), [selectedHole]: { strokes: s, updated_at: new Date().toISOString(), pending: true } },
@@ -105,19 +110,19 @@ export default function ScoreEntry() {
         showToast('Saved ✓');
       }
 
-      // Dismiss mobile keyboard — user just saved, they're not typing anymore.
-      // (If the hole changes below via auto-advance, the focus effect will
-      // re-focus on the new empty hole.)
       if (strokesInputRef.current) strokesInputRef.current.blur();
 
       // If Jeff Martin is on, don't auto-advance — let the scorer pick the your-hole player first.
       if (jmEnabled) return;
 
-      // Auto-advance to next empty hole
-      const totalHoles = ctx.event.holes;
+      // Auto-advance to next empty hole in play order
+      const currentScores = outcome.queued
+        ? { ...(ctx.scores || {}), [selectedHole]: { strokes: s } }
+        : outcome.response.scores;
+
       for (let i = 1; i <= totalHoles; i++) {
-        const nextHole = ((selectedHole - 1 + i) % totalHoles) + 1;
-        if (!result.scores[nextHole]) {
+        const nextHole = holeOrder[(holeOrder.indexOf(selectedHole) + i) % totalHoles];
+        if (!currentScores[nextHole]) {
           setSelectedHole(nextHole);
           return;
         }
@@ -154,11 +159,12 @@ export default function ScoreEntry() {
     finally { setJmBusy(false); }
   };
 
+  // Advance to next empty hole in play order
   const advanceToNextEmpty = () => {
-    const totalHoles = ctx.event.holes;
     const sc = ctx.scores;
     for (let i = 1; i <= totalHoles; i++) {
-      const nextHole = ((selectedHole - 1 + i) % totalHoles) + 1;
+      const idx = (holeOrder.indexOf(selectedHole) + i) % totalHoles;
+      const nextHole = holeOrder[idx];
       if (!sc[nextHole]) { setSelectedHole(nextHole); return; }
     }
   };
@@ -184,7 +190,7 @@ export default function ScoreEntry() {
       </div>
     </div>
   );
-  if (!ctx) return null;
+  if (!ctx || selectedHole === null) return null;
 
   const { team, event, pars, scores } = ctx;
   const isTeamLocked = !!team.locked_at;
@@ -194,10 +200,15 @@ export default function ScoreEntry() {
   const totalHoles = event.holes;
   const currentPar = pars[selectedHole] || 4;
 
+  // Hole order — wrap-around for shotgun starts
+  const startingHole = team.starting_hole || 1;
+  const holeOrder = getHoleOrder(startingHole, totalHoles);
+  const isShotgun = event.shotgun_start && startingHole !== 1;
+
   // Jeff Martin state
   const enabledGames = event.enabled_games || ['stroke_play'];
   const jmEnabled = enabledGames.includes('jeff_martin');
-  const jmShowMulligans = event.jm_show_mulligans !== false; // legacy events default to visible
+  const jmShowMulligans = event.jm_show_mulligans !== false;
   const roster = Array.isArray(team.players) ? team.players : [];
   const yourHoles = ctx.your_holes || {};
   const mulligans = ctx.mulligans || {};
@@ -211,7 +222,7 @@ export default function ScoreEntry() {
   const toPar = totalStrokes - totalParDone;
   const allHolesComplete = holesEntered >= totalHoles;
 
-  // Jeff Martin running total — sum of Stableford points with your-hole bonus
+  // Jeff Martin running total
   const jmTotalPoints = jmEnabled
     ? Object.keys(scores).reduce((sum, h) => {
         const s = scores[h];
@@ -230,6 +241,22 @@ export default function ScoreEntry() {
       <div className="score-header">
         <h1>{event.name}</h1>
         <div className="team">{team.team_name}</div>
+        {/* Shotgun start badge — confirms their starting hole */}
+        {isShotgun && (
+          <div style={{
+            marginTop: '0.35rem',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            color: 'var(--green-700)',
+            background: 'var(--green-50)',
+            border: '1px solid var(--green-200)',
+            borderRadius: 6,
+            display: 'inline-block',
+            padding: '0.2rem 0.6rem',
+          }}>
+            ⛳ Starting hole: {startingHole}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.4rem' }}>
           {event.status === 'live' && !isTeamLocked && <span className="badge badge-live" style={{ fontSize: '0.7rem' }}>● LIVE</span>}
           {event.status === 'completed' && <span className="badge badge-completed">FINAL</span>}
@@ -280,8 +307,6 @@ export default function ScoreEntry() {
         <div className="locked-banner">🔒 Event completed — Scores are final</div>
       )}
 
-      {/* Single-scorer mode: this team-card link still works for read-only
-          checking but the canonical scoring happens elsewhere. */}
       {event.scoring_mode === 'single' && !isLocked && (
         <div className="locked-banner" style={{ background: '#fef3c7', borderColor: '#fbbf24' }}>
           ⚠ This event uses <strong>single-scorer mode</strong>. Ask your organizer for the match-scorer link
@@ -289,14 +314,13 @@ export default function ScoreEntry() {
         </div>
       )}
 
-      {/* Not live */}
       {isNotLive && !isLocked && (
         <div className="locked-banner" style={{ background: 'var(--slate-100)', borderColor: 'var(--slate-200)' }}>
           Event is not live yet. Check back soon!
         </div>
       )}
 
-      {/* ═══ SUBMIT PROMPT — shown when all holes complete and not locked ═══ */}
+      {/* Submit prompt */}
       {allHolesComplete && !isLocked && !isNotLive && (
         <div className="submit-prompt">
           <div className="submit-prompt-title">🎉 All {totalHoles} holes entered!</div>
@@ -339,11 +363,11 @@ export default function ScoreEntry() {
         </div>
       )}
 
-      {/* Hole Selector */}
+      {/* Hole Selector — rendered in play order for shotgun starts */}
       {!isTeamLocked && (
         <>
           <div className="hole-selector">
-            {Array.from({ length: totalHoles }, (_, i) => i + 1).map(h => (
+            {holeOrder.map(h => (
               <button key={h}
                 className={`hole-btn ${selectedHole === h ? 'active' : ''} ${scores[h] ? 'has-score' : ''}`}
                 onClick={() => setSelectedHole(h)}
@@ -383,7 +407,7 @@ export default function ScoreEntry() {
             )}
           </div>
 
-          {/* ═══ JEFF MARTIN PANEL ═══ */}
+          {/* Jeff Martin Panel */}
           {jmEnabled && !isLocked && !isNotLive && (
             <div className="jm-panel">
               <div className="jm-panel-header">
@@ -393,7 +417,6 @@ export default function ScoreEntry() {
                 </button>
               </div>
 
-              {/* Your Hole picker */}
               <div className="jm-section">
                 <div className="jm-section-label">
                   Whose hole? <span className="jm-hint">(all shots from one player → −1)</span>
@@ -423,7 +446,6 @@ export default function ScoreEntry() {
                 )}
               </div>
 
-              {/* Mulligans */}
               {jmShowMulligans && roster.length > 0 && (
                 <div className="jm-section">
                   <div className="jm-section-label">
@@ -465,14 +487,12 @@ export default function ScoreEntry() {
                 </div>
               )}
 
-              {/* Next hole shortcut when strokes are entered */}
               {hasScoreForSelected && (
                 <button className="btn btn-secondary jm-next-btn" onClick={advanceToNextEmpty} type="button">
                   Next unfilled hole →
                 </button>
               )}
 
-              {/* Rules popover */}
               {showRules && (
                 <div className="jm-rules">
                   <div className="jm-rules-section">
@@ -497,16 +517,16 @@ export default function ScoreEntry() {
                     <div className="jm-rules-title">Mulligans</div>
                     <div>
                       2 per person per 6 holes (6 total over 18).
-                      {!jmShowMulligans && ' Tracked on the honor system for this event — adjust your strokes accordingly.'}
+                      {!jmShowMulligans && ' Tracked on the honor system for this event.'}
                     </div>
                   </div>
                   <div className="jm-rules-section">
                     <div className="jm-rules-title">Your Hole (−1 bonus)</div>
-                    <div>If all shots on a hole were from the same player, subtract 1 from the score. Example: one player's drive, approach, and made putt for a 3 counts as a 2.</div>
+                    <div>If all shots on a hole were from the same player, subtract 1 from the score.</div>
                   </div>
                   <div className="jm-rules-section">
                     <div className="jm-rules-title">Riders</div>
-                    <div>Any player can play as an extra for any shot on any team at any time. (Not tracked here — just a rule.)</div>
+                    <div>Any player can play as an extra for any shot on any team at any time. (Not tracked here.)</div>
                   </div>
                 </div>
               )}
@@ -515,9 +535,14 @@ export default function ScoreEntry() {
         </>
       )}
 
-      {/* Scores Summary */}
+      {/* Scores Summary — rendered in play order for shotgun starts */}
       {holesEntered > 0 && (
         <div className="scores-summary" style={{ marginTop: '1.5rem' }}>
+          {isShotgun && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--slate-400)', marginBottom: '0.5rem', textAlign: 'center' }}>
+              Scores shown in your play order (starting hole {startingHole})
+            </div>
+          )}
           <table>
             <thead>
               <tr>
@@ -529,10 +554,9 @@ export default function ScoreEntry() {
               </tr>
             </thead>
             <tbody>
-              {Array.from({ length: totalHoles }, (_, i) => i + 1).map(h => {
+              {holeOrder.map(h => {
                 const s = scores[h];
                 const par = pars[h] || 4;
-                // Stableford + your-hole adjustment for this row
                 let jmCell = null;
                 if (jmEnabled) {
                   if (s) {
