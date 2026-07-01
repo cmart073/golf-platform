@@ -560,6 +560,7 @@ export default function EventDetail() {
   const [scoringModeMeta, setScoringModeMeta] = useState({ inferred: 'distributed', canUseDistributed: true });
   const [enabledGames, setEnabledGames] = useState(['stroke_play']);
   const [jmShowMulligans, setJmShowMulligans] = useState(true);
+  const [showSideGamesOnLb, setShowSideGamesOnLb] = useState(true);
   const [gamePointTeam, setGamePointTeam] = useState('');
   const [gamePointHole, setGamePointHole] = useState(1);
   const [gamePointType, setGamePointType] = useState('bingo');
@@ -601,6 +602,7 @@ export default function EventDetail() {
       setEventType(d.event.event_type || 'tournament');
       // 1 (or null/undefined for legacy events pre-migration) → visible; 0 → hidden
       setJmShowMulligans(d.event.jm_show_mulligans === 0 ? false : true);
+      setShowSideGamesOnLb(d.event.leaderboard_show_side_games === 0 ? false : true);
       setScoringMode(
         d.event.scoring_mode
           || (d.event.event_type === 'weekly_match' ? 'single' : 'distributed'),
@@ -684,6 +686,7 @@ export default function EventDetail() {
         event_type: scoringMode === 'single' ? 'weekly_match' : 'tournament',
         enabled_games: enabledGames,
         jm_show_mulligans: jmShowMulligans,
+        leaderboard_show_side_games: showSideGamesOnLb,
         scoring_mode: scoringMode,
       });
       showToast('Game settings saved');
@@ -935,6 +938,27 @@ export default function EventDetail() {
             </label>
           </div>
         )}
+
+        {/* Leaderboard display options */}
+        <div className="form-group" style={{ marginTop: '0.75rem' }}>
+          <label>Leaderboard display</label>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={showSideGamesOnLb}
+              onChange={(e) => setShowSideGamesOnLb(e.target.checked)}
+              style={{ marginTop: '0.15rem' }}
+            />
+            <span>
+              Show side game results on public leaderboard
+              <div style={{ fontSize: '0.8rem', color: 'var(--slate-500)', marginTop: '0.1rem' }}>
+                {showSideGamesOnLb
+                  ? 'Skins, stroke play standings, and other game results are visible to players on the leaderboard.'
+                  : 'The leaderboard shows team rankings only — side game results are hidden from the public view.'}
+              </div>
+            </span>
+          </label>
+        </div>
 
         <button className="btn btn-primary btn-sm" onClick={saveGameSettings}>Save Game Settings</button>
 
@@ -1305,5 +1329,6 @@ export default function EventDetail() {
     </div>
   );
 }
+
 
 
