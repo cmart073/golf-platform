@@ -66,6 +66,7 @@ export const api = {
   overrideScore: (eventId, teamId, body) => request(`/api/admin/events/${eventId}/teams/${teamId}/override`, { method: 'POST', body: JSON.stringify(body) }),
   unlockTeam: (eventId, teamId) => request(`/api/admin/events/${eventId}/teams/${teamId}/unlock`, { method: 'POST', body: JSON.stringify({}) }),
   updateHandicap: (eventId, teamId, handicap_strokes) => request(`/api/admin/events/${eventId}/teams/${teamId}/handicap`, { method: 'POST', body: JSON.stringify({ handicap_strokes }) }),
+  updateStartingHole: (eventId, teamId, starting_hole) => request(`/api/admin/events/${eventId}/teams/${teamId}/starting-hole`, { method: 'PATCH', body: JSON.stringify({ starting_hole }) }),
 
   // Admin - Sponsors
   getSponsors: (eventId) => request(`/api/admin/events/${eventId}/sponsors`),
@@ -101,3 +102,4 @@ export const api = {
   getLeaderboard: (orgSlug, eventSlug) => request(`/api/public/org/${orgSlug}/event/${eventSlug}/leaderboard`),
   getPublicSponsors: (orgSlug, eventSlug) => request(`/api/public/org/${orgSlug}/event/${eventSlug}/sponsors`),
 };
+
