@@ -123,6 +123,11 @@ export async function onRequestGet(context) {
 
   const game_results = computeGameResults({ event, teams, scores: allScores, manualPoints, yourHoles, parByHole: parMap });
 
+  // Strip internal-only skins keys — the public leaderboard only needs the
+  // summary array. skins_detail and skins_unresolved_carry are admin-only.
+  delete game_results.skins_detail;
+  delete game_results.skins_unresolved_carry;
+
   // Parse enabled games for the client (so it can decide ranking/column layout)
   let enabledGames = ['stroke_play'];
   try {
@@ -161,3 +166,4 @@ export async function onRequestGet(context) {
     hidden: false,
   });
 }
+
