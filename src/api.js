@@ -68,6 +68,7 @@ export const api = {
   updateHandicap: (eventId, teamId, handicap_strokes) => request(`/api/admin/events/${eventId}/teams/${teamId}/handicap`, { method: 'POST', body: JSON.stringify({ handicap_strokes }) }),
   updateStartingHole: (eventId, teamId, starting_hole) => request(`/api/admin/events/${eventId}/teams/${teamId}/starting-hole`, { method: 'PATCH', body: JSON.stringify({ starting_hole }) }),
   updateHoleTee: (eventId, holeNumber, tee) => request(`/api/admin/events/${eventId}/holes/${holeNumber}/tee`, { method: 'PATCH', body: JSON.stringify({ tee }) }),
+  deleteTeam: (eventId, teamId) => request(`/api/admin/events/${eventId}/teams/${teamId}`, { method: 'DELETE' }),
 
   // Admin - Sponsors
   getSponsors: (eventId) => request(`/api/admin/events/${eventId}/sponsors`),
