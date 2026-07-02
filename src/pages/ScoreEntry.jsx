@@ -171,24 +171,29 @@ export default function ScoreEntry() {
   useEffect(() => { load(); }, [load]);
 
   // Live leaderboard poll — only during active round (not after submission)
+  // Derive stable values for the poll — avoids stale closure issues with ctx
+  const lbOrgSlug = ctx?.org_slug ?? null;
+  const lbEventSlug = ctx?.event?.slug ?? null;
+  const lbEventStatus = ctx?.event?.status ?? null;
+  const lbTeamLocked = ctx?.team?.locked_at ?? null;
+
   useEffect(() => {
-    if (!ctx) return;
-    const { event, org_slug } = ctx;
-    // Only poll when event is live and team hasn't submitted yet
-    if (event.status !== 'live' || ctx.team.locked_at) return;
-    if (!org_slug || !event.slug) return;
+    // Only poll when we have slugs, event is live, and team hasn't submitted
+    if (!lbOrgSlug || !lbEventSlug) return;
+    if (lbEventStatus !== 'live') return;
+    if (lbTeamLocked) return;
 
     const fetchLb = async () => {
       try {
-        const res = await fetch(`/api/public/org/${org_slug}/event/${event.slug}/leaderboard`);
+        const res = await fetch(`/api/public/org/${lbOrgSlug}/event/${lbEventSlug}/leaderboard`);
         if (res.ok) setLbData(await res.json());
       } catch { /* silent fail */ }
     };
 
-    fetchLb(); // immediate first fetch
-    lbPollRef.current = setInterval(fetchLb, 60000); // then every 60s
+    fetchLb();
+    lbPollRef.current = setInterval(fetchLb, 60000);
     return () => clearInterval(lbPollRef.current);
-  }, [ctx?.event?.status, ctx?.team?.locked_at, ctx?.org_slug, ctx?.event?.slug]);
+  }, [lbOrgSlug, lbEventSlug, lbEventStatus, lbTeamLocked]);
 
   const strokesInputRef = useRef(null);
 
@@ -778,4 +783,5 @@ export default function ScoreEntry() {
     </div>
   );
 }
+
 
