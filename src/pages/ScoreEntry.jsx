@@ -39,28 +39,52 @@ function getHoleOrder(startingHole, totalHoles) {
 }
 
 /* ── Mini Leaderboard ── */
-function MiniLeaderboard({ lbData, expanded, onToggle, showSideGames }) {
+function MiniLeaderboard({ lbData, expanded, onToggle, showSideGames, myTeamId }) {
   if (!lbData) return null;
-  const { leaderboard = [], game_results = {}, event } = lbData;
-  if (leaderboard.length === 0) return null;
+  // API returns 'teams' (not 'leaderboard'), to_par and holes_completed per row
+  const { teams = [], game_results = {}, event } = lbData;
+  if (teams.length === 0) return null;
 
-  const top3 = leaderboard.slice(0, 3);
-  const rest = leaderboard.slice(3);
+  const top3 = teams.slice(0, 3);
+  const rest = teams.slice(3);
   const hasSkins = showSideGames && Array.isArray(game_results.skins) && game_results.skins.length > 0;
   const skinsLeader = hasSkins ? game_results.skins.find(r => r.skins_won > 0) : null;
 
   const formatScore = (r) => {
-    if (r.net_strokes == null) return '—';
-    const diff = r.net_strokes - (r.total_par || 0);
-    if (diff === 0) return 'E';
-    return diff > 0 ? `+${diff}` : `${diff}`;
+    if (r.to_par == null) return '—';
+    if (r.to_par === 0) return 'E';
+    return r.to_par > 0 ? `+${r.to_par}` : `${r.to_par}`;
   };
 
-  const rowStyle = (i) => ({
+  const scoreColor = (toPar) => {
+    if (toPar < 0) return 'var(--green-700)';
+    if (toPar > 0) return 'var(--red-500, #ef4444)';
+    return 'var(--slate-600)';
+  };
+
+  const rowStyle = () => ({
     display: 'flex', alignItems: 'center', gap: '0.5rem',
     padding: '0.3rem 0', borderBottom: '1px solid var(--slate-100)',
     fontSize: '0.85rem',
   });
+
+  const TeamRow = ({ r, pos }) => (
+    <div style={rowStyle()}>
+      <span style={{ fontWeight: 700, color: 'var(--slate-400)', width: 18, flexShrink: 0 }}>{pos}</span>
+      <span style={{ flex: 1, fontWeight: r.team_id === myTeamId ? 700 : 400 }}>
+        {r.team_name}
+        {r.team_id === myTeamId && (
+          <span style={{ fontSize: '0.7rem', color: 'var(--green-600)', marginLeft: 4 }}>← you</span>
+        )}
+      </span>
+      <span style={{ fontWeight: 700, minWidth: 32, textAlign: 'right', color: scoreColor(r.to_par) }}>
+        {formatScore(r)}
+      </span>
+      <span style={{ fontSize: '0.72rem', color: 'var(--slate-400)', minWidth: 42, textAlign: 'right' }}>
+        {r.holes_completed ?? 0}/{event?.holes || 18}
+      </span>
+    </div>
+  );
 
   return (
     <div style={{
@@ -74,15 +98,17 @@ function MiniLeaderboard({ lbData, expanded, onToggle, showSideGames }) {
         background: 'var(--green-800)', color: '#fff',
       }}>
         <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>📊 Live Leaderboard</span>
-        <button onClick={onToggle} style={{
-          background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 4,
-          color: '#fff', fontSize: '0.75rem', padding: '0.15rem 0.5rem', cursor: 'pointer',
-        }}>
-          {expanded ? 'Show less ▲' : `All ${leaderboard.length} teams ▼`}
-        </button>
+        {teams.length > 3 && (
+          <button onClick={onToggle} style={{
+            background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 4,
+            color: '#fff', fontSize: '0.75rem', padding: '0.15rem 0.5rem', cursor: 'pointer',
+          }}>
+            {expanded ? 'Show less ▲' : `All ${teams.length} teams ▼`}
+          </button>
+        )}
       </div>
 
-      {/* Skins leader pill if applicable */}
+      {/* Skins leader pill */}
       {skinsLeader && (
         <div style={{
           padding: '0.3rem 0.75rem', background: '#fefce8',
@@ -95,43 +121,8 @@ function MiniLeaderboard({ lbData, expanded, onToggle, showSideGames }) {
 
       {/* Standings */}
       <div style={{ padding: '0.25rem 0.75rem' }}>
-        {top3.map((r, i) => (
-          <div key={r.team_id} style={rowStyle(i)}>
-            <span style={{ fontWeight: 700, color: 'var(--slate-400)', width: 18, flexShrink: 0 }}>{i + 1}</span>
-            <span style={{ flex: 1, fontWeight: r.team_id === lbData._my_team_id ? 700 : 400 }}>
-              {r.team_name}
-              {r.team_id === lbData._my_team_id && <span style={{ fontSize: '0.7rem', color: 'var(--green-600)', marginLeft: 4 }}>← you</span>}
-            </span>
-            <span style={{
-              fontWeight: 700, minWidth: 32, textAlign: 'right',
-              color: (() => { const d = r.net_strokes - (r.total_par||0); return d < 0 ? 'var(--green-700)' : d > 0 ? 'var(--red-500)' : 'var(--slate-600)'; })(),
-            }}>
-              {formatScore(r)}
-            </span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--slate-400)', minWidth: 38, textAlign: 'right' }}>
-              {r.holes_complete}/{event?.holes || 18}
-            </span>
-          </div>
-        ))}
-
-        {expanded && rest.map((r, i) => (
-          <div key={r.team_id} style={rowStyle(i)}>
-            <span style={{ fontWeight: 700, color: 'var(--slate-400)', width: 18, flexShrink: 0 }}>{i + 4}</span>
-            <span style={{ flex: 1, fontWeight: r.team_id === lbData._my_team_id ? 700 : 400 }}>
-              {r.team_name}
-              {r.team_id === lbData._my_team_id && <span style={{ fontSize: '0.7rem', color: 'var(--green-600)', marginLeft: 4 }}>← you</span>}
-            </span>
-            <span style={{
-              fontWeight: 700, minWidth: 32, textAlign: 'right',
-              color: (() => { const d = r.net_strokes - (r.total_par||0); return d < 0 ? 'var(--green-700)' : d > 0 ? 'var(--red-500)' : 'var(--slate-600)'; })(),
-            }}>
-              {formatScore(r)}
-            </span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--slate-400)', minWidth: 38, textAlign: 'right' }}>
-              {r.holes_complete}/{event?.holes || 18}
-            </span>
-          </div>
-        ))}
+        {top3.map((r, i) => <TeamRow key={r.team_id} r={r} pos={i + 1} />)}
+        {expanded && rest.map((r, i) => <TeamRow key={r.team_id} r={r} pos={i + 4} />)}
       </div>
     </div>
   );
@@ -776,6 +767,7 @@ export default function ScoreEntry() {
           expanded={lbExpanded}
           onToggle={() => setLbExpanded(v => !v)}
           showSideGames={event.show_side_games !== false}
+          myTeamId={team.id}
         />
       )}
 
@@ -783,5 +775,6 @@ export default function ScoreEntry() {
     </div>
   );
 }
+
 
 
