@@ -19,6 +19,11 @@ export async function onRequestGet(context) {
 
   if (!event) return err('Event not found', 404);
 
+  // Fetch org slug for leaderboard URL construction on client
+  const org = await db.prepare(
+    'SELECT slug FROM organizations WHERE id = ?'
+  ).bind(event.org_id).first();
+
   const { results: eventHoles } = await db.prepare(
     'SELECT hole_number, par, tee FROM event_holes WHERE event_id = ? ORDER BY hole_number'
   ).bind(event.id).all();
@@ -90,9 +95,12 @@ export async function onRequestGet(context) {
       scoring_mode: event.scoring_mode
         || (event.event_type === 'weekly_match' ? 'single' : 'distributed'),
       shotgun_start: shotgunStart,
+      slug: event.slug,
+      show_side_games: event.leaderboard_show_side_games !== 0,
       ...tokenStateSnapshot(event),
     },
     token_expired: isEventTokenExpired(event),
+    org_slug: org ? org.slug : null,
     pars: eventHoles.reduce((acc, h) => { acc[h.hole_number] = h.par; return acc; }, {}),
     tees: eventHoles.reduce((acc, h) => { if (h.tee) acc[h.hole_number] = h.tee; return acc; }, {}),
     scores: scoresMap,
