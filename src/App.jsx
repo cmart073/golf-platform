@@ -16,7 +16,7 @@ import Landing from './pages/Landing';
 function PublicBar() {
   return (
     <div className="top-bar no-print">
-      <img src="/logo.svg" alt="FairwaysLive" style={{ height: '56px', objectFit: 'contain' }} />
+      <img src="/logo-horizontal.png" alt="Fairways Live" style={{ height: '44px', objectFit: 'contain' }} />
     </div>
   );
 }
@@ -25,9 +25,8 @@ function AdminBar() {
   return (
     <div className="top-bar top-bar-admin no-print">
       <Link to="/admin" style={{ display: 'flex', alignItems: 'center' }}>
-        <img src="/logo.svg" alt="FairwaysLive" style={{ height: '56px', objectFit: 'contain' }} />
+        <img src="/logo-horizontal.png" alt="Fairways Live" style={{ height: '44px', objectFit: 'contain' }} />
       </Link>
-      <span className="admin-badge-nav">GOD MODE</span>
     </div>
   );
 }
