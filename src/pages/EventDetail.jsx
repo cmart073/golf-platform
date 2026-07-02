@@ -153,6 +153,10 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
   const [editVal, setEditVal] = useState('');
   const [saving, setSaving] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameVal, setNameVal] = useState(team.team_name);
+  const [editingPlayers, setEditingPlayers] = useState(false);
+  const [playersVal, setPlayersVal] = useState((team.players || []).join(', '));
 
   const holesEntered = Object.keys(team.scores || {}).length;
   const totalHoles = holes.length;
@@ -212,6 +216,27 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
     finally { setSaving(false); }
   };
 
+  const handleSaveName = async () => {
+    const trimmed = nameVal.trim();
+    if (!trimmed || trimmed === team.team_name) { setEditingName(false); return; }
+    try {
+      await api.updateTeam(eventId, team.id, { team_name: trimmed });
+      showToast('Team name updated');
+      setEditingName(false);
+      onUpdate();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
+  const handleSavePlayers = async () => {
+    const players = playersVal.split(',').map(p => p.trim()).filter(Boolean);
+    try {
+      await api.updateTeam(eventId, team.id, { players });
+      showToast('Players updated');
+      setEditingPlayers(false);
+      onUpdate();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
   const handleUnlock = async () => {
     setUnlocking(true);
     try {
@@ -239,7 +264,24 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
       {/* Team header row */}
       <div className="god-team-header" onClick={() => setExpanded(!expanded)}>
         <div className="god-team-left">
-          <span className="god-team-name">{team.team_name}</span>
+          {editingName ? (
+            <input
+              autoFocus
+              value={nameVal}
+              onChange={e => setNameVal(e.target.value)}
+              onBlur={handleSaveName}
+              onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') { setNameVal(team.team_name); setEditingName(false); } }}
+              onClick={e => e.stopPropagation()}
+              style={{ fontSize: '1rem', fontWeight: 700, border: '1px solid var(--green-400)', borderRadius: 6, padding: '0.15rem 0.4rem', width: 180 }}
+            />
+          ) : (
+            <span
+              className="god-team-name"
+              title="Click to edit team name"
+              onClick={e => { e.stopPropagation(); setEditingName(true); }}
+              style={{ cursor: 'pointer', borderBottom: '1px dashed var(--slate-300)' }}
+            >{team.team_name}</span>
+          )}
           {team.starting_hole != null && (
             <span style={{
               fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.03em',
@@ -293,12 +335,33 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
             </div>
           </div>
 
-          {/* Players */}
-          {team.players && team.players.length > 0 && (
-            <div className="god-players">
-              {team.players.join(' · ')}
-            </div>
-          )}
+          {/* Players — inline editable */}
+          <div className="god-players" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {editingPlayers ? (
+              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flex: 1 }}>
+                <input
+                  autoFocus
+                  value={playersVal}
+                  onChange={e => setPlayersVal(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSavePlayers(); if (e.key === 'Escape') { setPlayersVal((team.players||[]).join(', ')); setEditingPlayers(false); } }}
+                  placeholder="Player 1, Player 2, Player 3, Player 4"
+                  style={{ flex: 1, fontSize: '0.85rem', border: '1px solid var(--green-400)', borderRadius: 6, padding: '0.25rem 0.5rem' }}
+                />
+                <button className="btn btn-sm btn-primary" onClick={handleSavePlayers}>Save</button>
+                <button className="btn btn-sm btn-secondary" onClick={() => { setPlayersVal((team.players||[]).join(', ')); setEditingPlayers(false); }}>Cancel</button>
+              </div>
+            ) : (
+              <>
+                <span style={{ flex: 1, color: team.players && team.players.length > 0 ? 'var(--slate-600)' : 'var(--slate-400)', fontStyle: team.players && team.players.length > 0 ? 'normal' : 'italic' }}>
+                  {team.players && team.players.length > 0 ? team.players.join(' · ') : 'No players listed'}
+                </span>
+                <button
+                  onClick={() => setEditingPlayers(true)}
+                  style={{ background: 'none', border: '1px solid var(--slate-300)', borderRadius: 5, padding: '0.1rem 0.45rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--slate-500)', whiteSpace: 'nowrap' }}
+                >✏️ Edit players</button>
+              </>
+            )}
+          </div>
 
           {/* Hole-by-hole scorecard */}
           <div className="god-scorecard">
