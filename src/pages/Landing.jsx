@@ -8,7 +8,7 @@ export default function Landing() {
       <nav className="lp-nav">
         <div className="lp-nav-inner">
           <Link to="/" className="lp-brand">
-            <img src="/logo.svg" alt="Fairways Live" />
+            <img src="/logo-horizontal.png" alt="Fairways Live" style={{ height: '40px', objectFit: 'contain' }} />
           </Link>
           <div className="lp-nav-links">
             <a href="#features">Features</a>
@@ -272,7 +272,7 @@ export default function Landing() {
       {/* ═══ FOOTER ═══ */}
       <footer className="lp-footer">
         <div className="lp-footer-inner">
-          <img src="/logo.svg" alt="Fairways Live" className="lp-footer-logo" />
+          <img src="/logo-horizontal.png" alt="Fairways Live" className="lp-footer-logo" style={{ height: '40px', objectFit: 'contain' }} />
           <div className="lp-footer-meta">
             <span>© {new Date().getFullYear()} Fairways Live</span>
             <span className="lp-footer-dot">·</span>
