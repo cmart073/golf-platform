@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { api } from '../api';
 import { submitTeamHole } from '../offline/scorer';
 import SyncStatusPill from '../components/SyncStatusPill';
@@ -38,6 +38,106 @@ function getHoleOrder(startingHole, totalHoles) {
   return order;
 }
 
+/* ── Mini Leaderboard ── */
+function MiniLeaderboard({ lbData, expanded, onToggle, showSideGames }) {
+  if (!lbData) return null;
+  const { leaderboard = [], game_results = {}, event } = lbData;
+  if (leaderboard.length === 0) return null;
+
+  const top3 = leaderboard.slice(0, 3);
+  const rest = leaderboard.slice(3);
+  const hasSkins = showSideGames && Array.isArray(game_results.skins) && game_results.skins.length > 0;
+  const skinsLeader = hasSkins ? game_results.skins.find(r => r.skins_won > 0) : null;
+
+  const formatScore = (r) => {
+    if (r.net_strokes == null) return '—';
+    const diff = r.net_strokes - (r.total_par || 0);
+    if (diff === 0) return 'E';
+    return diff > 0 ? `+${diff}` : `${diff}`;
+  };
+
+  const rowStyle = (i) => ({
+    display: 'flex', alignItems: 'center', gap: '0.5rem',
+    padding: '0.3rem 0', borderBottom: '1px solid var(--slate-100)',
+    fontSize: '0.85rem',
+  });
+
+  return (
+    <div style={{
+      background: 'var(--slate-50)', border: '1px solid var(--slate-200)',
+      borderRadius: 10, margin: '1rem 0', overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '0.5rem 0.75rem',
+        background: 'var(--green-800)', color: '#fff',
+      }}>
+        <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>📊 Live Leaderboard</span>
+        <button onClick={onToggle} style={{
+          background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 4,
+          color: '#fff', fontSize: '0.75rem', padding: '0.15rem 0.5rem', cursor: 'pointer',
+        }}>
+          {expanded ? 'Show less ▲' : `All ${leaderboard.length} teams ▼`}
+        </button>
+      </div>
+
+      {/* Skins leader pill if applicable */}
+      {skinsLeader && (
+        <div style={{
+          padding: '0.3rem 0.75rem', background: '#fefce8',
+          fontSize: '0.78rem', borderBottom: '1px solid var(--slate-200)',
+          color: 'var(--green-800)',
+        }}>
+          🏆 Skins leader: <strong>{skinsLeader.team_name}</strong> · {skinsLeader.skins_won} skin{skinsLeader.skins_won !== 1 ? 's' : ''}
+        </div>
+      )}
+
+      {/* Standings */}
+      <div style={{ padding: '0.25rem 0.75rem' }}>
+        {top3.map((r, i) => (
+          <div key={r.team_id} style={rowStyle(i)}>
+            <span style={{ fontWeight: 700, color: 'var(--slate-400)', width: 18, flexShrink: 0 }}>{i + 1}</span>
+            <span style={{ flex: 1, fontWeight: r.team_id === lbData._my_team_id ? 700 : 400 }}>
+              {r.team_name}
+              {r.team_id === lbData._my_team_id && <span style={{ fontSize: '0.7rem', color: 'var(--green-600)', marginLeft: 4 }}>← you</span>}
+            </span>
+            <span style={{
+              fontWeight: 700, minWidth: 32, textAlign: 'right',
+              color: (() => { const d = r.net_strokes - (r.total_par||0); return d < 0 ? 'var(--green-700)' : d > 0 ? 'var(--red-500)' : 'var(--slate-600)'; })(),
+            }}>
+              {formatScore(r)}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--slate-400)', minWidth: 38, textAlign: 'right' }}>
+              {r.holes_complete}/{event?.holes || 18}
+            </span>
+          </div>
+        ))}
+
+        {expanded && rest.map((r, i) => (
+          <div key={r.team_id} style={rowStyle(i)}>
+            <span style={{ fontWeight: 700, color: 'var(--slate-400)', width: 18, flexShrink: 0 }}>{i + 4}</span>
+            <span style={{ flex: 1, fontWeight: r.team_id === lbData._my_team_id ? 700 : 400 }}>
+              {r.team_name}
+              {r.team_id === lbData._my_team_id && <span style={{ fontSize: '0.7rem', color: 'var(--green-600)', marginLeft: 4 }}>← you</span>}
+            </span>
+            <span style={{
+              fontWeight: 700, minWidth: 32, textAlign: 'right',
+              color: (() => { const d = r.net_strokes - (r.total_par||0); return d < 0 ? 'var(--green-700)' : d > 0 ? 'var(--red-500)' : 'var(--slate-600)'; })(),
+            }}>
+              {formatScore(r)}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--slate-400)', minWidth: 38, textAlign: 'right' }}>
+              {r.holes_complete}/{event?.holes || 18}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 export default function ScoreEntry() {
   const { accessToken } = useParams();
   const [ctx, setCtx] = useState(null);
@@ -49,6 +149,9 @@ export default function ScoreEntry() {
   const [submitting, setSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [toast, setToast] = useState('');
+  const [lbData, setLbData] = useState(null);
+  const [lbExpanded, setLbExpanded] = useState(false);
+  const lbPollRef = useRef(null);
   const [jmBusy, setJmBusy] = useState(false);
   const [showRules, setShowRules] = useState(false);
 
@@ -66,6 +169,26 @@ export default function ScoreEntry() {
   }, [accessToken]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Live leaderboard poll — only during active round (not after submission)
+  useEffect(() => {
+    if (!ctx) return;
+    const { event, org_slug } = ctx;
+    // Only poll when event is live and team hasn't submitted yet
+    if (event.status !== 'live' || ctx.team.locked_at) return;
+    if (!org_slug || !event.slug) return;
+
+    const fetchLb = async () => {
+      try {
+        const res = await fetch(`/api/public/org/${org_slug}/event/${event.slug}/leaderboard`);
+        if (res.ok) setLbData(await res.json());
+      } catch { /* silent fail */ }
+    };
+
+    fetchLb(); // immediate first fetch
+    lbPollRef.current = setInterval(fetchLb, 60000); // then every 60s
+    return () => clearInterval(lbPollRef.current);
+  }, [ctx?.event?.status, ctx?.team?.locked_at, ctx?.org_slug, ctx?.event?.slug]);
 
   const strokesInputRef = useRef(null);
 
@@ -192,12 +315,15 @@ export default function ScoreEntry() {
   );
   if (!ctx || selectedHole === null) return null;
 
-  const { team, event, pars, tees, scores } = ctx;
+  const { team, event, pars, tees, scores, org_slug } = ctx;
   const isTeamLocked = !!team.locked_at;
   const isEventLocked = !!event.locked_at || event.status === 'completed';
   const isLocked = isTeamLocked || isEventLocked;
   const isNotLive = event.status !== 'live' && event.status !== 'completed';
   const totalHoles = event.holes;
+  const leaderboardUrl = org_slug && event.slug
+    ? `/o/${org_slug}/e/${event.slug}/leaderboard`
+    : null;
   const currentPar = pars[selectedHole] || 4;
 
   // Tee box display config
@@ -309,6 +435,17 @@ export default function ScoreEntry() {
           <div className="submit-complete-sub">
             Your round is complete. Final score: {totalStrokes} ({formatToPar(toPar)})
           </div>
+          {leaderboardUrl && (
+            <a href={leaderboardUrl} target="_blank" rel="noopener noreferrer"
+              style={{
+                display: 'inline-block', marginTop: '0.75rem',
+                background: 'var(--green-700)', color: '#fff',
+                padding: '0.5rem 1.25rem', borderRadius: 8,
+                fontWeight: 600, fontSize: '0.9rem', textDecoration: 'none',
+              }}>
+              📊 View Leaderboard →
+            </a>
+          )}
         </div>
       )}
 
@@ -625,6 +762,16 @@ export default function ScoreEntry() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Live leaderboard — only shown during active round, not after submission */}
+      {!isTeamLocked && !isEventLocked && !isNotLive && lbData && (
+        <MiniLeaderboard
+          lbData={lbData}
+          expanded={lbExpanded}
+          onToggle={() => setLbExpanded(v => !v)}
+          showSideGames={event.show_side_games !== false}
+        />
       )}
 
       {toast && <div className="toast">{toast}</div>}
