@@ -146,7 +146,7 @@ function SponsorSection({ eventId, sponsors: initialSponsors, onUpdate }) {
   );
 }
 
-/* ── God Mode: Team Scorecard Editor ── */
+/* ── Team Scorecard Editor ── */
 function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = false, skinsDetail = [] }) {
   const [expanded, setExpanded] = useState(false);
   const [editHole, setEditHole] = useState(null);
@@ -408,7 +408,7 @@ function TeamScorecard({ team, holes, eventId, onUpdate, showToast, jmEnabled = 
   );
 }
 
-/* ── Jeff Martin admin panel (god mode) ── */
+/* ── Jeff Martin admin panel ── */
 function JeffMartinAdminPanel({ eventId, holes, showToast }) {
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -662,6 +662,15 @@ export default function EventDetail() {
     try {
       await api.updateHoleTee(eventId, holeNumber, tee);
       showToast(`Hole ${holeNumber} → ${tee || 'no tee'}`);
+      load();
+    } catch (e) { showToast('Error: ' + e.message); }
+  };
+
+  const handleDeleteTeam = async (teamId, teamName) => {
+    if (!window.confirm(`Delete "${teamName}" and all their scores? This cannot be undone.`)) return;
+    try {
+      await api.deleteTeam(eventId, teamId);
+      showToast(`${teamName} deleted`);
       load();
     } catch (e) { showToast('Error: ' + e.message); }
   };
@@ -1245,7 +1254,7 @@ export default function EventDetail() {
       {/* Sponsors */}
       <SponsorSection eventId={eventId} sponsors={sponsors} onUpdate={load} />
 
-      {/* Teams — God Mode */}
+      {/* Teams */}
       <div className="card god-card" style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h2 style={{ margin: 0 }}>👥 Teams ({teams.length})</h2>
@@ -1343,6 +1352,15 @@ export default function EventDetail() {
                       showToast={showToast}
                     />
                   </div>
+                  <button
+                    onClick={() => handleDeleteTeam(t.id, t.team_name)}
+                    title="Delete team"
+                    style={{
+                      background: 'none', border: '1px solid var(--red-300, #fca5a5)',
+                      borderRadius: 6, padding: '0.2rem 0.5rem', cursor: 'pointer',
+                      color: 'var(--red-500, #ef4444)', fontSize: '0.8rem', lineHeight: 1,
+                    }}
+                  >🗑 Delete</button>
                 </div>
                 <TeamScorecard team={t} holes={holes} eventId={eventId} onUpdate={load} showToast={showToast} jmEnabled={enabledGames.includes('jeff_martin')} skinsDetail={Array.isArray(gameResults.skins_detail) ? gameResults.skins_detail : []} />
               </div>
